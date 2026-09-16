@@ -444,6 +444,7 @@ class GrabApp {
     this.showToast(`Đã chuyển quyền sử dụng xe sang: ${driverName}`);
     this.saveState();
     this.renderOverview();
+    this.renderToday();
     if (window.grabSync) window.grabSync.broadcast('SWITCH_DRIVER', { driverId });
   }
 
