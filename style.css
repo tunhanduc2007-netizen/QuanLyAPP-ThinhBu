@@ -1761,32 +1761,96 @@ body {
 }
 
 /* ===================================================
-   RESPONSIVE (MOBILE FULL VIEWPORT)
+   RESPONSIVE (CHUẨN GIAO DIỆN NATIVE CHO ĐIỆN THOẠI THẬT)
    =================================================== */
-@media (max-width: 500px) {
-  body {
-    padding: 0;
-    background-color: var(--bg-app);
+@media (max-width: 768px), (pointer: coarse) and (max-width: 1024px) {
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: var(--bg-app) !important;
+    overflow: hidden !important;
   }
 
+  /* Ẩn thanh công cụ review desktop trên điện thoại */
   .desktop-bar {
-    display: none;
+    display: none !important;
   }
 
+  /* Khung máy tràn 100% màn hình, bỏ khung viền đen và bóng giả lập */
   .device-container {
-    width: 100vw;
-    height: 100vh;
-    border-radius: 0;
-    padding: 0;
-    box-shadow: none;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: var(--bg-app) !important;
   }
 
   .device-screen {
-    border-radius: 0;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
   }
 
+  /* ẨN HOÀN TOÀN THANH STATUS BAR VÀ TAI THỎ GIẢ (Vì điện thoại đã có sẵn đồng hồ, pin thật) */
+  .status-bar,
   .dynamic-island {
-    display: none;
+    display: none !important;
+  }
+
+  /* App header tự căn chỉnh theo tai thỏ / notch thật của máy */
+  .app-header {
+    padding-top: max(14px, env(safe-area-inset-top)) !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    border-radius: 0 !important;
+  }
+
+  /* Menu vuốt bên trái cũng đệm theo tai thỏ máy */
+  .drawer-header {
+    padding-top: max(20px, env(safe-area-inset-top)) !important;
+  }
+
+  /* Thanh Bottom Navigation ghim cố định ở đáy, bo tròn thanh lịch và an toàn thanh vuốt Home */
+  .bottom-nav {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    border-radius: 24px 24px 0 0 !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    height: calc(66px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 1000 !important;
+  }
+
+  /* Nội dung cuộn có đủ khoảng đệm để không bị thanh Bottom Nav che mất thẻ cuối */
+  .app-content {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px)) !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Lightbox ảnh tràn viền */
+  .lightbox-modal {
+    padding-top: max(30px, env(safe-area-inset-top)) !important;
+    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Bottom sheet modal đệm theo đáy */
+  .bottom-sheet {
+    padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
+    border-radius: 24px 24px 0 0 !important;
   }
 }
 
