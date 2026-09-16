@@ -473,6 +473,23 @@ class GrabApp {
     if (cashEl) cashEl.textContent = this.formatMoney(this.data.incomeOverview.cash);
     if (transferEl) transferEl.textContent = this.formatMoney(this.data.incomeOverview.transfer);
 
+    // So sánh với hôm qua (chỉ hiện khi có chênh lệch thực tế)
+    const trendEl = document.getElementById('overviewTrendIndicator');
+    if (trendEl) {
+      const diff = (this.data.incomeOverview && this.data.incomeOverview.diffYesterday) || 0;
+      if (!this.data.incomeOverview || this.data.incomeOverview.total === 0 || diff === 0) {
+        trendEl.style.display = 'none';
+      } else if (diff > 0) {
+        trendEl.style.display = 'inline-flex';
+        trendEl.innerHTML = `<span>↑ +${this.formatMoney(diff)} so với hôm qua</span>`;
+        trendEl.className = 'trend-indicator';
+      } else {
+        trendEl.style.display = 'inline-flex';
+        trendEl.innerHTML = `<span>↓ -${this.formatMoney(Math.abs(diff))} so với hôm qua</span>`;
+        trendEl.className = 'trend-indicator down';
+      }
+    }
+
     // Card Thịnh
     const thinhAmtEl = document.getElementById('thinhStatAmount');
     const thinhTripsEl = document.getElementById('thinhStatTrips');
@@ -1211,11 +1228,37 @@ class GrabApp {
     setSafe('repThinhCash', this.formatMoney(this.data.incomeOverview.thinh.cash));
     setSafe('repThinhTransfer', this.formatMoney(this.data.incomeOverview.thinh.transfer));
     setSafe('repThinhTrips', this.data.incomeOverview.thinh.trips);
+    setSafe('repThinhHours', this.calculateDriverHours('thinh'));
 
     setSafe('repBuAmount', this.formatMoney(this.data.incomeOverview.bu.total));
     setSafe('repBuCash', this.formatMoney(this.data.incomeOverview.bu.cash));
     setSafe('repBuTransfer', this.formatMoney(this.data.incomeOverview.bu.transfer));
     setSafe('repBuTrips', this.data.incomeOverview.bu.trips);
+    setSafe('repBuHours', this.calculateDriverHours('bu'));
+  }
+
+  calculateDriverHours(driverId) {
+    let totalMinutes = 0;
+    (this.data.schedules || []).forEach(slot => {
+      const status = driverId === 'thinh' ? slot.thinhStatus : slot.buStatus;
+      if (status === 'completed') {
+        const parts = (slot.timeSlot || '').split(' - ');
+        if (parts.length === 2) {
+          const [startH, startM] = parts[0].split(':').map(Number);
+          let [endH, endM] = parts[1].split(':').map(Number);
+          if (endH === 0 && startH > 12) endH = 24;
+          const startTotal = startH * 60 + (startM || 0);
+          const endTotal = endH * 60 + (endM || 0);
+          const diff = endTotal - startTotal;
+          if (diff > 0) totalMinutes += diff;
+        }
+      }
+    });
+
+    if (totalMinutes === 0) return '0h 00p';
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return `${h}h ${String(m).padStart(2, '0')}p`;
   }
 
   // ===================================================
