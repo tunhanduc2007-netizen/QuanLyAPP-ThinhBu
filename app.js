@@ -734,9 +734,9 @@ class GrabApp {
       }
       this.showToast(`Đã hủy ca ${timeSlot}`);
     } else {
-      // KIỂM TRA XUNG ĐỘT TRÙNG LỊCH CHUNG 1 XE (PHẦN 4)
+      // Xung đột chỉ khi người kia đang chạy thực sự, không phải Trống
       const otherStatus = driverId === 'thinh' ? slotObj.buStatus : slotObj.thinhStatus;
-      if (otherStatus && otherStatus !== 'off') {
+      if (otherStatus === 'running' || otherStatus === 'completed') {
         alert('Xe đã có lịch trong khoảng thời gian này.');
         return;
       }
@@ -771,7 +771,7 @@ class GrabApp {
     if (!slotObj) return;
 
     const otherStatus = driverId === 'thinh' ? slotObj.buStatus : slotObj.thinhStatus;
-    if (status !== 'off' && (otherStatus && otherStatus !== 'off')) {
+    if (status !== 'off' && (otherStatus === 'running' || otherStatus === 'completed')) {
       alert('Xe đã có lịch trong khoảng thời gian này.');
       return;
     }
