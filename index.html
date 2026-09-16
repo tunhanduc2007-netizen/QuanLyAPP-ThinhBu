@@ -14,6 +14,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Open Source CDN: Chart.js & Tesseract.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -327,6 +332,37 @@
                 <div class="driver-avatar bu">B</div>
                 <span class="driver-name">Bu</span>
                 <span class="badge-status available dot" style="font-size: 10px; padding: 2px 8px;">Sẵn sàng</span>
+              </div>
+            </div>
+
+            <!-- Widget LubeLogger: Bảo dưỡng xe Air Blade -->
+            <div class="maint-widget-box" onclick="app.openMaintenanceModal()" title="Bấm để xem & ghi nhận bảo dưỡng xe">
+              <div class="maint-widget-header">
+                <div class="maint-title">
+                  <span>🛠️ Bảo dưỡng Air Blade:</span>
+                  <strong id="maintOdoDisplay">12.850 km</strong>
+                </div>
+                <span class="badge-status running" id="maintStatusBadge" style="font-size: 10px; padding: 2px 8px;">Tốt</span>
+              </div>
+              <div class="maint-bars-row">
+                <div class="maint-meter">
+                  <div class="maint-meter-label">
+                    <span>Nhớt máy (1.500km)</span>
+                    <span id="maintOilText">Còn 150 km</span>
+                  </div>
+                  <div class="maint-progress-bg">
+                    <div class="maint-progress-fill" id="maintOilBar" style="width: 90%; background: #F59F00;"></div>
+                  </div>
+                </div>
+                <div class="maint-meter">
+                  <div class="maint-meter-label">
+                    <span>Nhớt láp (5.000km)</span>
+                    <span id="maintGearOilText">Còn 2.150 km</span>
+                  </div>
+                  <div class="maint-progress-bg">
+                    <div class="maint-progress-fill" id="maintGearOilBar" style="width: 57%; background: #10B981;"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -799,9 +835,10 @@
 
           </div>
 
+          <!-- Biểu đồ doanh thu Chart.js (Thịnh vs Bu) -->
           <div class="card chart-card">
-            <div class="card-header-row" style="margin-bottom: 4px;">
-              <span class="card-title-sm">Biểu đồ doanh thu</span>
+            <div class="card-header-row" style="margin-bottom: 8px;">
+              <span class="card-title-sm">📊 Doanh thu so sánh (Chart.js)</span>
               <div class="chart-legend">
                 <div class="legend-item">
                   <span class="legend-dot" style="background: var(--driver-thinh);"></span>
@@ -814,8 +851,18 @@
               </div>
             </div>
 
-            <div class="chart-svg-container" id="reportBarChart">
-              <!-- Rendered via JS SVG -->
+            <div style="position: relative; width: 100%; height: 220px;">
+              <canvas id="chartRevenueComparison"></canvas>
+            </div>
+          </div>
+
+          <!-- Biểu đồ phân bổ hình thức thanh toán & chi phí -->
+          <div class="card chart-card">
+            <div class="card-header-row" style="margin-bottom: 8px;">
+              <span class="card-title-sm">🥧 Phân bổ Tiền mặt & Chuyển khoản</span>
+            </div>
+            <div style="position: relative; width: 100%; height: 200px; display: flex; justify-content: center;">
+              <canvas id="chartPaymentDistribution"></canvas>
             </div>
           </div>
 
@@ -927,15 +974,19 @@
             </div>
           </div>
 
-          <!-- THẺ ĐỐI SOÁT BÙ TRỪ TIỀN MẶT / CHUYỂN KHOẢN (RẤT THỰC TẾ) -->
-          <div class="card" style="border: 2px dashed #0C7247; background: #F0FDF4;">
-            <div class="card-title-sm" style="color: var(--primary-green); margin-bottom: 6px;">
-              ⚖️ ĐỐI SOÁT BÙ TRỪ TIỀN MẶT & CHUYỂN KHOẢN
+          <!-- THẺ ĐỐI SOÁT & QUYẾT TOÁN BÙ TRỪ SPLIIT -->
+          <div class="card spliit-card" style="border: 2px solid #10B981; background: #F0FDF4;">
+            <div class="card-header-row" style="margin-bottom: 6px;">
+              <span class="card-title-sm" style="color: var(--primary-green); font-weight: 800;">
+                ⚡ ĐỐI SOÁT & QUYẾT TOÁN (SPLIIT ENGINE)
+              </span>
+              <span class="badge-status running" id="spliitStatusBadge">Chờ quyết toán</span>
             </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
-              Mỗi người tự giữ doanh thu của mình. Đối soát tiền mặt thu trực tiếp và tiền chuyển khoản:
+            <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">
+              Tự động bù trừ chéo: Tiền mặt thu hộ khách, chi phí sửa xe/nhớt chia 50-50, và tiền xăng cá nhân:
             </p>
-            <div style="background: #FFFFFF; border-radius: 8px; padding: 10px; border: 1px solid #BBF7D0; font-size: 13px; display: flex; flex-direction: column; gap: 4px;">
+
+            <div class="spliit-breakdown-box" style="background: #FFFFFF; border-radius: 10px; padding: 12px; border: 1px solid #BBF7D0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
               <div style="display: flex; justify-content: space-between;">
                 <span>💵 Tiền mặt Thịnh đang cầm:</span>
                 <strong id="closeDoiSoatCashThinh">0đ</strong>
@@ -944,9 +995,19 @@
                 <span>💵 Tiền mặt Bu đang cầm:</span>
                 <strong id="closeDoiSoatCashBu">0đ</strong>
               </div>
-              <div style="border-top: 1px dashed #E2E8F0; margin-top: 4px; padding-top: 4px; font-weight: 700; color: #0C7247; font-size: 14px;" id="closeDoiSoatKetLuan">
-                👉 Kết luận: Hai bên đối soát sòng phẳng!
+              <div style="display: flex; justify-content: space-between;">
+                <span>🛠️ Chi phí xe chung (chia đôi 50%):</span>
+                <strong id="spliitSharedExpense">0đ</strong>
               </div>
+              <div style="border-top: 1.5px dashed #CBD5E1; margin-top: 6px; padding-top: 8px; font-weight: 700; color: #0C7247; font-size: 14px;" id="closeDoiSoatKetLuan">
+                👉 Kết luận: Hai bên sòng phẳng (0đ)!
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <button type="button" class="btn-primary" style="background: #0C7247; flex: 1; padding: 10px 14px; font-size: 13px;" onclick="app.handleSettleUp()">
+                ✓ Xác nhận đã chuyển khoản / Sòng phẳng
+              </button>
             </div>
           </div>
 
@@ -1173,6 +1234,13 @@
               </div>
               <span>Chốt sổ ngày</span>
             </div>
+
+            <div class="action-card-btn" onclick="app.openMaintenanceModal(); app.closeBottomSheet();">
+              <div class="action-icon" style="background: #E0F2FE; color: #0284C7;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+              </div>
+              <span>Bảo dưỡng xe</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1189,11 +1257,17 @@
           <div style="background: #F0FDF4; border: 1px dashed var(--primary-green); border-radius: 12px; padding: 10px; margin-bottom: 12px; text-align: center;">
             <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--primary-green); font-size: 13px; font-weight: 700;">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>📷 Quét tự động từ ảnh chụp màn hình</span>
+              <span>📷 Quét tự động từ ảnh chụp màn hình (Tesseract.js)</span>
               <input type="file" accept="image/*" style="display: none;" onchange="app.handleOcrScanTrip(this)">
             </label>
-            <div id="ocrScanningNotice" style="display: none; font-size: 11px; color: #0C7247; margin-top: 4px; font-weight: 600;">
-              ⏳ Đang đọc số tiền & thời gian từ ảnh...
+            <div id="ocrScanningNotice" style="display: none; margin-top: 8px;">
+              <div style="font-size: 11.5px; color: #0C7247; font-weight: 700; display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span id="ocrStatusText">⏳ Tesseract OCR: Đang quét...</span>
+                <span id="ocrPercentText">0%</span>
+              </div>
+              <div style="background: #DCFCE7; height: 6px; border-radius: 3px; overflow: hidden;">
+                <div id="ocrProgressBarFill" style="background: #0C7247; width: 0%; height: 100%; transition: width 0.2s ease;"></div>
+              </div>
             </div>
           </div>
 
@@ -1335,6 +1409,24 @@
         <div class="bottom-sheet" onclick="event.stopPropagation()">
           <div class="sheet-handle"></div>
           <div class="sheet-title">Ghi Nhận Đổ Xăng & Chi Phí</div>
+
+          <!-- Nút Quét Hóa Đơn Xăng / Sửa Xe OCR Nhanh -->
+          <div style="background: #EFF6FF; border: 1px dashed #2563EB; border-radius: 12px; padding: 10px; margin-bottom: 12px; text-align: center;">
+            <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: #2563EB; font-size: 13px; font-weight: 700;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>📷 Quét hóa đơn xăng / sửa xe (Tesseract.js)</span>
+              <input type="file" accept="image/*" style="display: none;" onchange="app.handleOcrScanExpense(this)">
+            </label>
+            <div id="ocrExpenseScanningNotice" style="display: none; margin-top: 8px;">
+              <div style="font-size: 11.5px; color: #1D4ED8; font-weight: 700; display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span id="ocrExpenseStatusText">⏳ Tesseract OCR: Đang quét hóa đơn...</span>
+                <span id="ocrExpensePercentText">0%</span>
+              </div>
+              <div style="background: #DBEAFE; height: 6px; border-radius: 3px; overflow: hidden;">
+                <div id="ocrExpenseProgressBarFill" style="background: #2563EB; width: 0%; height: 100%; transition: width 0.2s ease;"></div>
+              </div>
+            </div>
+          </div>
 
           <form id="addExpenseForm" onsubmit="app.handleSaveExpense(event)">
             <div class="form-group" style="margin-bottom: 10px;">
@@ -1516,6 +1608,112 @@
           </div>
           <button class="btn-primary" onclick="app.closeModal('historyDetailModal')">
             Đóng
+          </button>
+        </div>
+      </div>
+
+      <!-- ==============================================
+           MODAL: SỔ BẢO DƯỠNG XE AIR BLADE (LUBELOGGER)
+           ============================================== -->
+      <div class="modal-overlay" id="maintenanceModal" onclick="app.closeModal('maintenanceModal', event)">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">🛠️ Sổ Bảo Dưỡng Air Blade (59E2-059.57)</div>
+          <p style="font-size: 11.5px; color: var(--text-muted); text-align: center; margin-top: -6px;">
+            Quản lý số ODO & chu kỳ thay nhớt, lọc gió, sửa xe chung
+          </p>
+
+          <!-- Hộp cập nhật số ODO nhanh -->
+          <div class="odo-update-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 700;">Đồng hồ ODO xe:</span>
+              <strong style="font-size: 16px; color: var(--primary-green);" id="modalOdoCurrentDisplay">12.850 km</strong>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="number" class="form-input" id="modalInputOdo" placeholder="Cập nhật số ODO mới (km)" style="flex: 1; padding: 6px 10px;">
+              <button type="button" class="btn-primary" style="width: auto; padding: 6px 14px; font-size: 12px;" onclick="app.handleUpdateOdo()">
+                Cập nhật ODO
+              </button>
+            </div>
+          </div>
+
+          <!-- Trạng thái các mốc bảo dưỡng định kỳ -->
+          <div class="maint-status-cards-grid">
+            <div class="maint-detail-card" id="cardMaintOilEngine">
+              <div class="maint-detail-head">
+                <span class="maint-detail-title">🛵 Nhớt máy (1.500 km)</span>
+                <span class="badge-status" id="badgeMaintOilEngine">Tốt</span>
+              </div>
+              <div class="maint-detail-body" id="textMaintOilEngine">
+                Lần thay gần nhất: 11.500 km (Đã chạy 1.350 km)
+              </div>
+              <button type="button" class="btn-maint-quick" onclick="app.quickLogMaintenance('oil_engine')">
+                + Ghi nhận đã thay nhớt máy
+              </button>
+            </div>
+
+            <div class="maint-detail-card" id="cardMaintOilGear">
+              <div class="maint-detail-head">
+                <span class="maint-detail-title">⚙️ Nhớt láp / số (5.000 km)</span>
+                <span class="badge-status" id="badgeMaintOilGear">Tốt</span>
+              </div>
+              <div class="maint-detail-body" id="textMaintOilGear">
+                Lần thay gần nhất: 10.000 km (Đã chạy 2.850 km)
+              </div>
+              <button type="button" class="btn-maint-quick" onclick="app.quickLogMaintenance('oil_gear')">
+                + Ghi nhận đã thay nhớt láp
+              </button>
+            </div>
+          </div>
+
+          <!-- Form Ghi Nhận Bảo Dưỡng / Sửa Xe Mới -->
+          <div style="border-top: 1px solid #E2E8F0; padding-top: 10px;">
+            <div class="form-label" style="font-weight: 800; font-size: 13px; margin-bottom: 8px;">
+              📝 Ghi nhận chi phí xe / sửa xe chung (Chia 50-50)
+            </div>
+            <form id="addMaintenanceForm" onsubmit="app.handleSaveMaintenance(event)">
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label class="form-label">Hạng mục dịch vụ</label>
+                <input type="text" class="form-input" id="maintNameInput" placeholder="VD: Thay nhớt Motul, Vá vỏ bánh sau..." required>
+              </div>
+
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Số tiền (VNĐ)</label>
+                  <input type="number" class="form-input" id="maintCostInput" placeholder="VD: 130000" step="1000" required>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Người trả tiền túi</label>
+                  <select class="form-select" id="maintPaidBySelect">
+                    <option value="thinh">Thịnh trả</option>
+                    <option value="bu">Bu trả</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">Ghi chú / Tên tiệm</label>
+                <input type="text" class="form-input" id="maintNoteInput" placeholder="VD: Tiệm sửa xe chú Bảy, nhớt chính hãng">
+              </div>
+
+              <button type="submit" class="btn-primary">
+                ✓ Lưu chi phí xe & Đồng bộ chia nợ Spliit
+              </button>
+            </form>
+          </div>
+
+          <!-- Lịch sử bảo dưỡng gần đây -->
+          <div style="border-top: 1px solid #E2E8F0; padding-top: 10px; margin-top: 4px;">
+            <div class="form-label" style="font-weight: 800; font-size: 13px; margin-bottom: 8px;">
+              📜 Lịch sử bảo dưỡng xe gần nhất
+            </div>
+            <div class="maint-history-list" id="maintHistoryList">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <button type="button" class="btn-primary" style="background: #64748B; margin-top: 6px;" onclick="app.closeModal('maintenanceModal')">
+            Đóng sổ bảo dưỡng
           </button>
         </div>
       </div>

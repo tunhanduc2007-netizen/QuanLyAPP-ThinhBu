@@ -146,6 +146,24 @@ const CLEAN_DATA = {
     netIncome: 0,
     walletRemaining: 0,
     highlights: []
+  },
+
+  // LubeLogger - Nhật ký bảo dưỡng & cảnh báo định kỳ xe Air Blade 125
+  vehicleMaintenance: {
+    currentOdo: 0,
+    oilChangeInterval: 1500,
+    lastOilChangeOdo: 0,
+    gearOilInterval: 5000,
+    lastGearOilOdo: 0,
+    airFilterInterval: 10000,
+    lastAirFilterOdo: 0,
+    logs: []
+  },
+
+  // Spliit - Lịch sử quyết toán nợ giữa Thịnh & Bu
+  settlement: {
+    lastSettledDate: null,
+    history: []
   }
 };
 
@@ -237,6 +255,30 @@ const DEMO_DATA = {
     netIncome: 965000,
     walletRemaining: 620000,
     highlights: ["Khách chuyển khoản sau 50k", "Đổ xăng 100k", "Có khoản cần kiểm tra lại"]
+  },
+
+  // LubeLogger - Nhật ký bảo dưỡng & cảnh báo định kỳ xe Air Blade 125
+  vehicleMaintenance: {
+    currentOdo: 12850,
+    oilChangeInterval: 1500,
+    lastOilChangeOdo: 11500, // Đã chạy 1350 km -> Còn 150 km sắp tới hạn (Vàng)
+    gearOilInterval: 5000,
+    lastGearOilOdo: 10000, // Đã chạy 2850 km -> Còn 2150 km (Xanh)
+    airFilterInterval: 10000,
+    lastAirFilterOdo: 5000,
+    logs: [
+      { id: "maint-1", date: "01/09/2026", odo: 11500, type: "oil_engine", name: "Thay nhớt máy Motul Scooter", cost: 130000, paidBy: "thinh", note: "Định kỳ tại tiệm sửa xe chú Bảy" },
+      { id: "maint-2", date: "15/08/2026", odo: 10000, type: "oil_gear", name: "Thay nhớt hộp số (láp)", cost: 45000, paidBy: "bu", note: "Nhớt láp Castrol Scooter" },
+      { id: "maint-3", date: "10/08/2026", odo: 9800, type: "tire", name: "Vá vỏ xe sau", cost: 30000, paidBy: "thinh", note: "Dính đinh đường Nguyễn Thị Minh Khai" }
+    ]
+  },
+
+  // Spliit - Lịch sử quyết toán nợ giữa Thịnh & Bu
+  settlement: {
+    lastSettledDate: "11/09/2026",
+    history: [
+      { id: "set-1", date: "11/09/2026", payer: "bu", receiver: "thinh", amount: 65000, note: "Quyết toán tiền chia nhớt máy & tiền mặt chốt ngày" }
+    ]
   }
 };
 

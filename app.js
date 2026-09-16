@@ -43,6 +43,21 @@ class GrabApp {
     if (this.data && this.data.vehicle) {
       this.data.vehicle.plate = '59E2-059.57';
     }
+    if (this.data && !this.data.vehicleMaintenance) {
+      this.data.vehicleMaintenance = JSON.parse(JSON.stringify((typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.vehicleMaintenance) || {
+        currentOdo: 12850,
+        oilChangeInterval: 1500,
+        lastOilChangeOdo: 11500,
+        gearOilInterval: 5000,
+        lastGearOilOdo: 10000,
+        airFilterInterval: 10000,
+        lastAirFilterOdo: 5000,
+        logs: []
+      }));
+    }
+    if (this.data && !this.data.settlement) {
+      this.data.settlement = { lastSettledDate: null, history: [] };
+    }
   }
 
   saveState() {
@@ -411,6 +426,7 @@ class GrabApp {
   renderAll() {
     this.recalculateBalances();
     this.renderOverview();
+    this.renderMaintenanceWidget();
     this.renderCalendarBook();
     this.renderSchedule();
     this.renderIncome();
@@ -418,6 +434,7 @@ class GrabApp {
     this.renderGallery();
     this.renderReports();
     this.renderClosing();
+    this.renderSpliitSettlement();
     this.renderClosedHistory();
     this.renderToday();
   }
@@ -1176,43 +1193,9 @@ class GrabApp {
   }
 
   // ===================================================
-  // 6. RENDER BÁO CÁO (PHẦN 11)
+  // 6. RENDER BÁO CÁO (PHẦN 11) - TÍCH HỢP CHART.JS
   // ===================================================
   renderReports() {
-    const chartContainer = document.getElementById('reportBarChart');
-    if (!chartContainer) return;
-
-    const days = (this.data.reports && this.data.reports.chartDays) || [];
-    const maxVal = Math.max(700000, this.data.incomeOverview.total || 1);
-    const svgWidth = 320;
-    const svgHeight = 130;
-    const barWidth = 14;
-    const groupGap = 70;
-
-    let barsHtml = '';
-    days.forEach((item, i) => {
-      const xGroup = 35 + i * groupGap;
-      const thinhVal = item.date === '12/09' ? this.data.incomeOverview.thinh.total : item.thinh;
-      const buVal = item.date === '12/09' ? this.data.incomeOverview.bu.total : item.bu;
-      const thinhHeight = Math.min(90, (thinhVal / maxVal) * 90);
-      const buHeight = Math.min(90, (buVal / maxVal) * 90);
-      const thinhY = svgHeight - 25 - thinhHeight;
-      const buY = svgHeight - 25 - buHeight;
-
-      barsHtml += `<rect x="${xGroup}" y="${thinhY}" width="${barWidth}" height="${thinhHeight}" rx="3" fill="var(--driver-thinh)" />`;
-      barsHtml += `<rect x="${xGroup + barWidth + 3}" y="${buY}" width="${barWidth}" height="${buHeight}" rx="3" fill="var(--driver-bu)" />`;
-      barsHtml += `<text x="${xGroup + barWidth}" y="${svgHeight - 8}" text-anchor="middle" font-size="10" fill="#64748B">${item.label}</text>`;
-    });
-
-    const svg = `
-      <svg width="100%" height="100%" viewBox="0 0 ${svgWidth} ${svgHeight}">
-        <line x1="20" y1="${svgHeight - 25}" x2="${svgWidth - 10}" y2="${svgHeight - 25}" stroke="#E2E8F0" stroke-width="1" />
-        <line x1="20" y1="${svgHeight - 70}" x2="${svgWidth - 10}" y2="${svgHeight - 70}" stroke="#F1F5F9" stroke-width="1" stroke-dasharray="3,3" />
-        ${barsHtml}
-      </svg>
-    `;
-    chartContainer.innerHTML = svg;
-
     // Cập nhật số liệu text báo cáo
     const setSafe = (id, val) => {
       const el = document.getElementById(id);
@@ -1235,6 +1218,124 @@ class GrabApp {
     setSafe('repBuTransfer', this.formatMoney(this.data.incomeOverview.bu.transfer));
     setSafe('repBuTrips', this.data.incomeOverview.bu.trips);
     setSafe('repBuHours', this.calculateDriverHours('bu'));
+
+    // Gọi vẽ biểu đồ Chart.js
+    this.renderCharts();
+  }
+
+  renderCharts() {
+    if (typeof Chart === 'undefined') return;
+
+    // 1. Biểu đồ cột: So sánh doanh thu Thịnh vs Bu theo ngày
+    const barCanvas = document.getElementById('chartRevenueComparison');
+    if (barCanvas) {
+      const days = (this.data.reports && this.data.reports.chartDays) || [
+        { label: "09/09", thinh: 0, bu: 0 },
+        { label: "10/09", thinh: 0, bu: 0 },
+        { label: "11/09", thinh: 0, bu: 0 },
+        { label: "12/09", thinh: 0, bu: 0 }
+      ];
+
+      const labels = days.map(d => d.label || d.date);
+      const dataThinh = days.map(d => (d.date === '12/09' || d.label === '12/09') ? (this.data.incomeOverview.thinh.total || 0) : (d.thinh || 0));
+      const dataBu = days.map(d => (d.date === '12/09' || d.label === '12/09') ? (this.data.incomeOverview.bu.total || 0) : (d.bu || 0));
+
+      if (this.chartRevenue) {
+        this.chartRevenue.destroy();
+      }
+
+      const ctx = barCanvas.getContext('2d');
+      this.chartRevenue = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Thịnh',
+              data: dataThinh,
+              backgroundColor: '#0C7247',
+              borderRadius: 6,
+              barPercentage: 0.65
+            },
+            {
+              label: 'Bu',
+              data: dataBu,
+              backgroundColor: '#1971C2',
+              borderRadius: 6,
+              barPercentage: 0.65
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => `${context.dataset.label}: ${this.formatMoney(context.raw)}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: (val) => val >= 1000 ? (val / 1000) + 'k' : val,
+                font: { size: 10 }
+              },
+              grid: { color: 'rgba(0,0,0,0.05)' }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11, weight: 'bold' } }
+            }
+          }
+        }
+      });
+    }
+
+    // 2. Biểu đồ tròn (Doughnut): Cơ cấu Tiền mặt & Chuyển khoản
+    const distCanvas = document.getElementById('chartPaymentDistribution');
+    if (distCanvas) {
+      const cash = (this.data.incomeOverview && this.data.incomeOverview.cash) || 0;
+      const transfer = (this.data.incomeOverview && this.data.incomeOverview.transfer) || 0;
+      const hasData = (cash + transfer) > 0;
+
+      if (this.chartDist) {
+        this.chartDist.destroy();
+      }
+
+      const ctxDist = distCanvas.getContext('2d');
+      this.chartDist = new Chart(ctxDist, {
+        type: 'doughnut',
+        data: {
+          labels: ['Tiền mặt', 'Chuyển khoản'],
+          datasets: [{
+            data: hasData ? [cash, transfer] : [1, 1],
+            backgroundColor: hasData ? ['#10B981', '#3B82F6'] : ['#E2E8F0', '#CBD5E1'],
+            borderWidth: 2,
+            borderColor: '#FFFFFF'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '68%',
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { font: { size: 11, weight: '600' }, boxWidth: 12 }
+            },
+            tooltip: {
+              callbacks: {
+                label: (context) => hasData ? `${context.label}: ${this.formatMoney(context.raw)}` : 'Chưa có doanh thu'
+              }
+            }
+          }
+        }
+      });
+    }
   }
 
   calculateDriverHours(driverId) {
@@ -1290,21 +1391,289 @@ class GrabApp {
     setSafe('closeBuOther', '-' + this.formatMoney(b.otherExpense));
     setSafe('closeBuNet', this.formatMoney(b.netIncome));
 
-    // Thẻ đối soát bù trừ
-    setSafe('closeDoiSoatCashThinh', this.formatMoney(t.cash));
-    setSafe('closeDoiSoatCashBu', this.formatMoney(b.cash));
+    // Thẻ đối soát bù trừ Spliit Engine
+    this.renderSpliitSettlement();
+  }
 
+  // ===================================================
+  // SPLIIT: ĐỐI SOÁT & QUYẾT TOÁN BÙ TRỪ TỰ ĐỘNG
+  // ===================================================
+  renderSpliitSettlement() {
+    const t = (this.data.dailyClosing && this.data.dailyClosing.thinh) || {};
+    const b = (this.data.dailyClosing && this.data.dailyClosing.bu) || {};
+    const setSafe = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+
+    setSafe('closeDoiSoatCashThinh', this.formatMoney(t.cash || 0));
+    setSafe('closeDoiSoatCashBu', this.formatMoney(b.cash || 0));
+
+    // Tính tổng chi phí xe dùng chung (chia 50-50)
+    let sharedExpense = 0;
+    ((this.data.vehicleMaintenance && this.data.vehicleMaintenance.logs) || []).forEach(log => {
+      sharedExpense += (parseInt(log.cost) || 0);
+    });
+    sharedExpense += ((t.otherExpense || 0) + (b.otherExpense || 0));
+
+    setSafe('spliitSharedExpense', this.formatMoney(sharedExpense) + ` (Mỗi người: ${this.formatMoney(Math.round(sharedExpense / 2))})`);
+
+    // Spliit Formula:
+    // Chênh lệch giữa Tiền mặt đang giữ vs Thu nhập ròng được hưởng
+    const diffThinh = (t.cash || 0) - (t.netIncome || 0);
     const ketLuanEl = document.getElementById('closeDoiSoatKetLuan');
+    const statusBadge = document.getElementById('spliitStatusBadge');
+
+    const isSettled = this.data.settlement && this.data.settlement.isSettled;
+
+    if (isSettled) {
+      if (statusBadge) {
+        statusBadge.textContent = 'Đã sòng phẳng 🟢';
+        statusBadge.className = 'badge-status completed dot';
+      }
+      if (ketLuanEl) {
+        ketLuanEl.innerHTML = `✓ Hai bên đã chuyển khoản quyết toán xong! (Sòng phẳng 0đ)`;
+        ketLuanEl.style.color = '#0C7247';
+      }
+      return;
+    }
+
+    if (statusBadge) {
+      statusBadge.textContent = 'Chờ quyết toán 🟡';
+      statusBadge.className = 'badge-status available dot';
+    }
+
     if (ketLuanEl) {
-      const diff = t.cash - b.cash;
-      if (diff === 0) {
-        ketLuanEl.textContent = '👉 Kết luận: Tiền mặt hai bên đều nhau!';
-      } else if (diff > 0) {
-        ketLuanEl.textContent = `👉 Kết luận: Thịnh cầm nhiều hơn Bu ${this.formatMoney(diff)} tiền mặt.`;
+      if (diffThinh === 0) {
+        ketLuanEl.innerHTML = `👉 Hai bên đối soát sòng phẳng (Không ai nợ ai)!`;
+        ketLuanEl.style.color = '#0C7247';
+      } else if (diffThinh > 0) {
+        ketLuanEl.innerHTML = `👉 <strong>THỊNH</strong> cần chuyển khoản trả <strong>BU</strong>: <span style="color: #E03131; font-size: 15px;">${this.formatMoney(diffThinh)}</span>`;
       } else {
-        ketLuanEl.textContent = `👉 Kết luận: Bu cầm nhiều hơn Thịnh ${this.formatMoney(Math.abs(diff))} tiền mặt.`;
+        ketLuanEl.innerHTML = `👉 <strong>BU</strong> cần chuyển khoản trả <strong>THỊNH</strong>: <span style="color: #0C7247; font-size: 15px;">${this.formatMoney(Math.abs(diffThinh))}</span>`;
       }
     }
+  }
+
+  handleSettleUp() {
+    if (!this.data.settlement) this.data.settlement = {};
+    this.data.settlement.isSettled = true;
+    this.data.settlement.lastSettledDate = new Date().toLocaleDateString('vi-VN');
+    if (!this.data.settlement.history) this.data.settlement.history = [];
+    this.data.settlement.history.unshift({
+      id: 'settle-' + Date.now(),
+      date: new Date().toLocaleString('vi-VN'),
+      note: 'Xác nhận chuyển khoản quyết toán bù trừ sòng phẳng'
+    });
+
+    this.saveState();
+    this.renderSpliitSettlement();
+    this.showToast('✓ Đã xác nhận quyết toán bù trừ Spliit thành công!');
+    if (window.grabSync) window.grabSync.broadcast('SETTLE_UP', { settledDate: this.data.settlement.lastSettledDate });
+  }
+
+  // ===================================================
+  // LUBELOGGER: QUẢN LÝ & BẢO DƯỠNG XE AIR BLADE
+  // ===================================================
+  renderMaintenanceWidget() {
+    const vm = this.data.vehicleMaintenance || {};
+    const curOdo = parseInt(vm.currentOdo) || 0;
+    const oilEngineInterval = parseInt(vm.oilChangeInterval) || 1500;
+    const lastOilEngine = parseInt(vm.lastOilChangeOdo) || 0;
+    const gearOilInterval = parseInt(vm.gearOilInterval) || 5000;
+    const lastGearOil = parseInt(vm.lastGearOilOdo) || 0;
+
+    // Nhớt máy
+    const runEngine = Math.max(0, curOdo - lastOilEngine);
+    const remEngine = oilEngineInterval - runEngine;
+    const pctEngine = Math.min(100, Math.max(0, Math.round((runEngine / oilEngineInterval) * 100)));
+
+    // Nhớt láp
+    const runGear = Math.max(0, curOdo - lastGearOil);
+    const remGear = gearOilInterval - runGear;
+    const pctGear = Math.min(100, Math.max(0, Math.round((runGear / gearOilInterval) * 100)));
+
+    const getColor = (rem) => {
+      if (rem <= 0) return '#E03131';
+      if (rem <= 200) return '#F59F00';
+      return '#10B981';
+    };
+
+    const getBadge = (rem) => {
+      if (rem <= 0) return '<span class="badge-status off dot">Quá hạn</span>';
+      if (rem <= 200) return '<span class="badge-status available dot">Sắp tới hạn</span>';
+      return '<span class="badge-status running dot">Tốt</span>';
+    };
+
+    // Update Dashboard Widget
+    const odoDisplay = document.getElementById('maintOdoDisplay');
+    const statusBadge = document.getElementById('maintStatusBadge');
+    const oilText = document.getElementById('maintOilText');
+    const oilBar = document.getElementById('maintOilBar');
+    const gearText = document.getElementById('maintGearOilText');
+    const gearBar = document.getElementById('maintGearOilBar');
+
+    if (odoDisplay) odoDisplay.textContent = `${curOdo.toLocaleString('vi-VN')} km`;
+    if (oilText) oilText.textContent = remEngine <= 0 ? `Quá ${Math.abs(remEngine)} km!` : `Còn ${remEngine} km`;
+    if (oilBar) {
+      oilBar.style.width = `${pctEngine}%`;
+      oilBar.style.backgroundColor = getColor(remEngine);
+    }
+    if (gearText) gearText.textContent = remGear <= 0 ? `Quá ${Math.abs(remGear)} km!` : `Còn ${remGear} km`;
+    if (gearBar) {
+      gearBar.style.width = `${pctGear}%`;
+      gearBar.style.backgroundColor = getColor(remGear);
+    }
+
+    if (statusBadge) {
+      if (remEngine <= 0 || remGear <= 0) {
+        statusBadge.textContent = 'Cần bảo dưỡng!';
+        statusBadge.className = 'badge-status off dot';
+      } else if (remEngine <= 200 || remGear <= 200) {
+        statusBadge.textContent = 'Sắp tới hạn';
+        statusBadge.className = 'badge-status available dot';
+      } else {
+        statusBadge.textContent = 'Xe chạy tốt';
+        statusBadge.className = 'badge-status running dot';
+      }
+    }
+
+    // Update inside Maintenance Modal
+    const modalOdo = document.getElementById('modalOdoCurrentDisplay');
+    const badgeOilEng = document.getElementById('badgeMaintOilEngine');
+    const textOilEng = document.getElementById('textMaintOilEngine');
+    const badgeOilGr = document.getElementById('badgeMaintOilGear');
+    const textOilGr = document.getElementById('textMaintOilGear');
+    const historyList = document.getElementById('maintHistoryList');
+
+    if (modalOdo) modalOdo.textContent = `${curOdo.toLocaleString('vi-VN')} km`;
+    if (badgeOilEng) badgeOilEng.innerHTML = getBadge(remEngine);
+    if (textOilEng) textOilEng.textContent = `Lần thay gần nhất: ${lastOilEngine.toLocaleString('vi-VN')} km (Đã chạy ${runEngine} km / ${oilEngineInterval} km)`;
+    if (badgeOilGr) badgeOilGr.innerHTML = getBadge(remGear);
+    if (textOilGr) textOilGr.textContent = `Lần thay gần nhất: ${lastGearOil.toLocaleString('vi-VN')} km (Đã chạy ${runGear} km / ${gearOilInterval} km)`;
+
+    if (historyList) {
+      const logs = vm.logs || [];
+      if (logs.length === 0) {
+        historyList.innerHTML = `<div style="text-align: center; color: #94A3B8; font-size: 11px; padding: 10px;">Chưa có lịch sử bảo dưỡng nào</div>`;
+      } else {
+        historyList.innerHTML = logs.map(l => `
+          <div class="maint-history-item">
+            <div>
+              <strong style="color: #1E293B;">${l.name}</strong>
+              <div style="color: #64748B; font-size: 10.5px;">${l.date} • ODO: ${l.odo || curOdo} km • ${l.paidBy === 'thinh' ? 'Thịnh trả' : 'Bu trả'}</div>
+            </div>
+            <div style="font-weight: 800; color: #E03131;">${this.formatMoney(l.cost || 0)}</div>
+          </div>
+        `).join('');
+      }
+    }
+  }
+
+  openMaintenanceModal() {
+    const vm = this.data.vehicleMaintenance || {};
+    const inputOdo = document.getElementById('modalInputOdo');
+    if (inputOdo) inputOdo.value = vm.currentOdo || '';
+    this.renderMaintenanceWidget();
+    this.openModal('maintenanceModal');
+  }
+
+  handleUpdateOdo() {
+    const input = document.getElementById('modalInputOdo');
+    if (!input || !input.value) {
+      alert('Vui lòng nhập số ODO hợp lệ');
+      return;
+    }
+    const val = parseInt(input.value);
+    if (val < 0) return;
+
+    if (!this.data.vehicleMaintenance) this.data.vehicleMaintenance = {};
+    this.data.vehicleMaintenance.currentOdo = val;
+    this.saveState();
+    this.renderMaintenanceWidget();
+    this.showToast(`✓ Đã cập nhật số ODO xe: ${val.toLocaleString('vi-VN')} km!`);
+  }
+
+  quickLogMaintenance(type) {
+    if (!this.data.vehicleMaintenance) this.data.vehicleMaintenance = {};
+    const curOdo = this.data.vehicleMaintenance.currentOdo || 12850;
+    const nowStr = new Date().toLocaleDateString('vi-VN');
+
+    if (type === 'oil_engine') {
+      this.data.vehicleMaintenance.lastOilChangeOdo = curOdo;
+      if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
+      this.data.vehicleMaintenance.logs.unshift({
+        id: 'maint-' + Date.now(),
+        date: nowStr,
+        odo: curOdo,
+        type: 'oil_engine',
+        name: 'Thay nhớt máy Motul Scooter',
+        cost: 130000,
+        paidBy: this.data.vehicle.currentDriverId || 'thinh',
+        note: 'Ghi nhận nhanh tại mốc ' + curOdo + ' km'
+      });
+      this.showToast('✓ Đã cập nhật mốc thay nhớt máy mới!');
+    } else if (type === 'oil_gear') {
+      this.data.vehicleMaintenance.lastGearOilOdo = curOdo;
+      if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
+      this.data.vehicleMaintenance.logs.unshift({
+        id: 'maint-' + Date.now(),
+        date: nowStr,
+        odo: curOdo,
+        type: 'oil_gear',
+        name: 'Thay nhớt hộp số (láp)',
+        cost: 45000,
+        paidBy: this.data.vehicle.currentDriverId || 'thinh',
+        note: 'Ghi nhận nhanh tại mốc ' + curOdo + ' km'
+      });
+      this.showToast('✓ Đã cập nhật mốc thay nhớt láp mới!');
+    }
+
+    this.saveState();
+    this.renderMaintenanceWidget();
+    this.renderSpliitSettlement();
+  }
+
+  handleSaveMaintenance(e) {
+    e.preventDefault();
+    const name = document.getElementById('maintNameInput').value;
+    const cost = parseInt(document.getElementById('maintCostInput').value) || 0;
+    const paidBy = document.getElementById('maintPaidBySelect').value;
+    const note = document.getElementById('maintNoteInput').value;
+    const curOdo = (this.data.vehicleMaintenance && this.data.vehicleMaintenance.currentOdo) || 12850;
+    const nowStr = new Date().toLocaleDateString('vi-VN');
+
+    if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
+    this.data.vehicleMaintenance.logs.unshift({
+      id: 'maint-' + Date.now(),
+      date: nowStr,
+      odo: curOdo,
+      type: 'repair',
+      name: name,
+      cost: cost,
+      paidBy: paidBy,
+      note: note
+    });
+
+    if (this.data.settlement) this.data.settlement.isSettled = false;
+
+    if (!this.data.notes) this.data.notes = [];
+    this.data.notes.unshift({
+      id: 'note-' + Date.now(),
+      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      content: `${name} (${this.formatMoney(cost)}) • Chung 1 xe`,
+      driver: paidBy === 'thinh' ? 'Thịnh' : 'Bu',
+      date: nowStr,
+      type: 'vehicle',
+      tagColor: '#1971C2'
+    });
+
+    this.saveState();
+    this.renderMaintenanceWidget();
+    this.renderSpliitSettlement();
+    this.renderNotes();
+    this.closeModal('maintenanceModal');
+    this.showToast('✓ Đã lưu chi phí bảo dưỡng & đồng bộ bù trừ 50-50!');
   }
 
   executeDailyClose() {
@@ -1465,28 +1834,93 @@ class GrabApp {
   }
 
   // ===================================================
-  // QUÉT ẢNH TỰ ĐỘNG (OCR SCAN TRIP)
+  // QUÉT ẢNH TỰ ĐỘNG (TESSERACT.JS OCR ENGINES)
   // ===================================================
   async handleOcrScanTrip(fileInput) {
     if (!fileInput.files || !fileInput.files[0]) return;
     const file = fileInput.files[0];
     const notice = document.getElementById('ocrScanningNotice');
+    const bar = document.getElementById('ocrProgressBarFill');
+    const pct = document.getElementById('ocrPercentText');
+    const status = document.getElementById('ocrStatusText');
+
     if (notice) notice.style.display = 'block';
+    if (bar) bar.style.width = '10%';
+    if (pct) pct.textContent = '10%';
+    if (status) status.textContent = '⏳ Tesseract OCR: Đang nạp mô hình...';
 
     try {
-      const scanned = await window.grabOCR.scanImage(file);
-      document.getElementById('tripAmountInput').value = scanned.amount;
-      document.getElementById('tripTimeInput').value = scanned.time;
-      document.getElementById('tripTypeSelect').value = scanned.paymentType;
-      document.getElementById('tripNoteInput').value = scanned.note;
+      const scanned = await window.grabOCR.scanImage(file, (percent) => {
+        if (bar) bar.style.width = `${percent}%`;
+        if (pct) pct.textContent = `${percent}%`;
+        if (status) {
+          status.textContent = percent < 90 ? `⏳ Tesseract OCR: Đang quét ký tự (${percent}%)...` : '✨ Đang trích xuất số tiền & chuyến...';
+        }
+      });
+
+      if (scanned.amount) document.getElementById('tripAmountInput').value = scanned.amount;
+      if (scanned.time) document.getElementById('tripTimeInput').value = scanned.time;
+      if (scanned.paymentType) document.getElementById('tripTypeSelect').value = scanned.paymentType;
+      if (scanned.note) document.getElementById('tripNoteInput').value = scanned.note;
       if (scanned.driverHint) {
         document.getElementById('tripDriverSelect').value = scanned.driverHint;
       }
-      this.showToast(`✨ OCR đã nhận diện: ${this.formatMoney(scanned.amount)} (${scanned.paymentType === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})!`);
+      this.showToast(`✨ Tesseract OCR nhận diện (${scanned.method}): ${this.formatMoney(scanned.amount)} (${scanned.paymentType === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})!`);
     } catch (e) {
+      console.error(e);
       this.showToast('Không thể phân tích ảnh. Vui lòng nhập thủ công!');
     } finally {
-      if (notice) notice.style.display = 'none';
+      setTimeout(() => {
+        if (notice) notice.style.display = 'none';
+        if (bar) bar.style.width = '0%';
+        if (pct) pct.textContent = '0%';
+      }, 800);
+      fileInput.value = '';
+    }
+  }
+
+  async handleOcrScanExpense(fileInput) {
+    if (!fileInput.files || !fileInput.files[0]) return;
+    const file = fileInput.files[0];
+    const notice = document.getElementById('ocrExpenseScanningNotice');
+    const bar = document.getElementById('ocrExpenseProgressBarFill');
+    const pct = document.getElementById('ocrExpensePercentText');
+    const status = document.getElementById('ocrExpenseStatusText');
+
+    if (notice) notice.style.display = 'block';
+    if (bar) bar.style.width = '10%';
+    if (pct) pct.textContent = '10%';
+    if (status) status.textContent = '⏳ Tesseract OCR: Đang nạp mô hình...';
+
+    try {
+      const scanned = await window.grabOCR.scanImage(file, (percent) => {
+        if (bar) bar.style.width = `${percent}%`;
+        if (pct) pct.textContent = `${percent}%`;
+        if (status) {
+          status.textContent = percent < 90 ? `⏳ Tesseract OCR: Đang quét hóa đơn (${percent}%)...` : '✨ Đang phân tích chi phí...';
+        }
+      });
+
+      if (scanned.amount) document.getElementById('expenseAmountInput').value = scanned.amount;
+      if (scanned.note) document.getElementById('expenseNoteInput').value = scanned.note;
+      if (scanned.category === 'fuel_pump') {
+        document.getElementById('expenseTypeSelect').value = 'fuel';
+      } else if (scanned.category === 'maintenance') {
+        document.getElementById('expenseTypeSelect').value = 'maintain';
+      }
+      if (scanned.driverHint) {
+        document.getElementById('expenseDriverSelect').value = scanned.driverHint;
+      }
+      this.showToast(`✨ Tesseract OCR nhận diện hóa đơn (${scanned.method}): ${this.formatMoney(scanned.amount)}!`);
+    } catch (e) {
+      console.error(e);
+      this.showToast('Không thể đọc hóa đơn. Vui lòng nhập số tiền tay!');
+    } finally {
+      setTimeout(() => {
+        if (notice) notice.style.display = 'none';
+        if (bar) bar.style.width = '0%';
+        if (pct) pct.textContent = '0%';
+      }, 800);
       fileInput.value = '';
     }
   }
