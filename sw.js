@@ -1,4 +1,4 @@
-const CACHE_NAME = 'grab-app-v9';
+const CACHE_NAME = 'grab-app-v10';
 const ASSETS = [
   './',
   './index.html',

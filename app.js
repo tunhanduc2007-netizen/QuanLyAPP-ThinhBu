@@ -429,7 +429,7 @@ class GrabApp {
 
       case 'screen-today':
         titleEl.textContent = 'Hôm nay';
-        subtitleEl.textContent = 'Thứ 6, 12/09/2026';
+        subtitleEl.textContent = this.getTodayInfo().displayStr;
         subtitleEl.style.display = 'block';
         leftIcon.innerHTML = hamburgerSvg;
         rightIcon.innerHTML = bellSvg;
@@ -449,6 +449,14 @@ class GrabApp {
 
   renderAll() {
     this.recalculateBalances();
+
+    // Cập nhật tất cả label ngày hôm nay theo thời gian thực
+    const today = this.getTodayInfo();
+    ['scheduleDateText', 'notesDateText', 'galleryDateText'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = today.displayStr;
+    });
+
     this.renderOverview();
     this.renderMaintenanceWidget();
     this.renderCalendarBook();
