@@ -2018,21 +2018,43 @@ class GrabApp {
     btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
 
+    // Lọc trips thực tế theo period, không cộng dồn data ảo
+    const now = new Date();
+    const trips = this.data.trips || [];
+    let filtered;
     if (period === 'today') {
-      this.recalculateBalances();
+      const todayStr = now.toISOString().slice(0, 10);
+      filtered = trips.filter(t => (t.date || '').slice(0, 10) === todayStr);
     } else if (period === 'week') {
-      const curTotal = this.data.incomeOverview.total;
-      this.data.incomeOverview.total = curTotal + 3630000;
-      this.data.incomeOverview.thinh.total += 1880000;
-      this.data.incomeOverview.bu.total += 1750000;
+      const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 6);
+      filtered = trips.filter(t => t.date && new Date(t.date) >= weekAgo);
     } else {
-      const curTotal = this.data.incomeOverview.total;
-      this.data.incomeOverview.total = curTotal + 17980000;
-      this.data.incomeOverview.thinh.total += 9480000;
-      this.data.incomeOverview.bu.total += 8500000;
+      filtered = trips.filter(t => {
+        if (!t.date) return false;
+        const d = new Date(t.date);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      });
     }
+
+    const thinhTrips = filtered.filter(t => t.driver === 'thinh');
+    const buTrips    = filtered.filter(t => t.driver === 'bu');
+    const sum  = (arr, k) => arr.reduce((a, t) => a + (parseInt(t[k]) || 0), 0);
+
+    this.data.incomeOverview.total          = sum(filtered,    'amount');
+    this.data.incomeOverview.totalTrips     = filtered.length;
+    this.data.incomeOverview.cash           = sum(filtered,    'cash');
+    this.data.incomeOverview.transfer       = sum(filtered,    'transfer');
+    this.data.incomeOverview.thinh.total    = sum(thinhTrips,  'amount');
+    this.data.incomeOverview.thinh.trips    = thinhTrips.length;
+    this.data.incomeOverview.thinh.cash     = sum(thinhTrips,  'cash');
+    this.data.incomeOverview.thinh.transfer = sum(thinhTrips,  'transfer');
+    this.data.incomeOverview.bu.total       = sum(buTrips,     'amount');
+    this.data.incomeOverview.bu.trips       = buTrips.length;
+    this.data.incomeOverview.bu.cash        = sum(buTrips,     'cash');
+    this.data.incomeOverview.bu.transfer    = sum(buTrips,     'transfer');
+    // Không saveState — chỉ render, không ghi vào localStorage
     this.renderOverview();
-    this.showToast(`Đã chuyển xem thống kê: ${btn.textContent}`);
+    this.showToast(`Thống kê: ${btn.textContent}`);
   }
 
   setScheduleTab(btn, tab) {
