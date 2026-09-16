@@ -906,6 +906,7 @@ class GrabApp {
 
     const newTrip = {
       id: 'trip-' + Date.now(),
+      date: new Date().toISOString().slice(0, 10),
       time,
       amount,
       type,
@@ -1048,7 +1049,7 @@ class GrabApp {
       time: timeStr,
       content: input.value.trim(),
       driver: curDriverName,
-      date: '12/09/2026',
+      date: this.getTodayInfo().dateStr,
       type: 'info',
       tagColor: curDriverName === 'Thịnh' ? '#0C7247' : '#1971C2'
     };
@@ -1303,8 +1304,8 @@ class GrabApp {
       ];
 
       const labels = days.map(d => d.label || d.date);
-      const dataThinh = days.map(d => (d.date === '12/09' || d.label === '12/09') ? (this.data.incomeOverview.thinh.total || 0) : (d.thinh || 0));
-      const dataBu = days.map(d => (d.date === '12/09' || d.label === '12/09') ? (this.data.incomeOverview.bu.total || 0) : (d.bu || 0));
+      const dataThinh = days.map(d => d.thinh || 0);
+      const dataBu = days.map(d => d.bu || 0);
 
       if (this.chartRevenue) {
         this.chartRevenue.destroy();
@@ -1709,7 +1710,7 @@ class GrabApp {
     const cost = parseInt(document.getElementById('maintCostInput').value) || 0;
     const paidBy = document.getElementById('maintPaidBySelect').value;
     const note = document.getElementById('maintNoteInput').value;
-    const curOdo = (this.data.vehicleMaintenance && this.data.vehicleMaintenance.currentOdo) || 12850;
+    const curOdo = (this.data.vehicleMaintenance && this.data.vehicleMaintenance.currentOdo) || 0;
     const nowStr = new Date().toLocaleDateString('vi-VN');
 
     if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
@@ -1765,10 +1766,11 @@ class GrabApp {
     this.data.dailyClosing.isClosed = true;
 
     // Lưu bản chốt vào lịch sử (PHẦN 12)
+    const todayInfo = this.getTodayInfo();
     const historyItem = {
       id: 'close-' + Date.now(),
-      date: '12/09/2026',
-      dateLabel: 'Thứ 6, 12/09/2026',
+      date: todayInfo.dateStr,
+      dateLabel: todayInfo.displayStr,
       totalRevenue: this.data.incomeOverview.total,
       cash: this.data.incomeOverview.cash,
       transfer: this.data.incomeOverview.transfer,
@@ -1790,7 +1792,7 @@ class GrabApp {
     this.recalculateBalances();
     this.saveState();
     this.renderAll();
-    this.showToast('✓ Đã chốt sổ ngày Thứ 6, 12/09/2026 cho Thịnh & Bu!');
+    this.showToast(`✓ Đã chốt sổ ngày ${todayInfo.displayStr} cho Thịnh & Bu!`);
 
     if (window.grabSync) window.grabSync.broadcast('DAILY_CLOSE', { closing: this.data.dailyClosing });
     setTimeout(() => {
@@ -2023,8 +2025,10 @@ class GrabApp {
     const trips = this.data.trips || [];
     let filtered;
     if (period === 'today') {
-      const todayStr = now.toISOString().slice(0, 10);
-      filtered = trips.filter(t => (t.date || '').slice(0, 10) === todayStr);
+      this.recalculateBalances();
+      this.renderOverview();
+      this.showToast(`Thống kê: ${btn.textContent}`);
+      return;
     } else if (period === 'week') {
       const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 6);
       filtered = trips.filter(t => t.date && new Date(t.date) >= weekAgo);
@@ -2036,8 +2040,8 @@ class GrabApp {
       });
     }
 
-    const thinhTrips = filtered.filter(t => t.driver === 'thinh');
-    const buTrips    = filtered.filter(t => t.driver === 'bu');
+    const thinhTrips = filtered.filter(t => t.driverId === 'thinh');
+    const buTrips    = filtered.filter(t => t.driverId === 'bu');
     const sum  = (arr, k) => arr.reduce((a, t) => a + (parseInt(t[k]) || 0), 0);
 
     this.data.incomeOverview.total          = sum(filtered,    'amount');
@@ -2090,7 +2094,7 @@ class GrabApp {
     if (this.selectedDay > 1) {
       this.selectCalendarDate(this.selectedDay - 1);
     } else {
-      this.showToast('Đầu tháng 9/2026');
+      this.showToast(`Đầu tháng ${this.currentCalMonth}/${this.currentCalYear}`);
     }
   }
 
@@ -2099,7 +2103,7 @@ class GrabApp {
     if (this.selectedDay < maxDays) {
       this.selectCalendarDate(this.selectedDay + 1);
     } else {
-      this.showToast('Cuối tháng 9/2026');
+      this.showToast(`Cuối tháng ${this.currentCalMonth}/${this.currentCalYear}`);
     }
   }
 
@@ -2162,7 +2166,7 @@ class GrabApp {
       time: timeStr,
       content: `${note} ${this.formatMoney(amount)}`,
       driver: driverName,
-      date: '12/09/2026',
+      date: this.getTodayInfo().dateStr,
       type: 'expense',
       tagColor: '#1971C2'
     };
@@ -2191,11 +2195,15 @@ class GrabApp {
     }
     if (finFuel) {
       const f = parseInt(finFuel.value.replace(/\D/g, '')) || 0;
-      this.data.dailyClosing.thinh.fuelExpense = f;
+      // Chia đều xăng cho 2 người (dùng chung xe)
+      this.data.dailyClosing.thinh.fuelExpense = Math.round(f / 2);
+      this.data.dailyClosing.bu.fuelExpense = Math.round(f / 2);
     }
     if (finOther) {
       const o = parseInt(finOther.value.replace(/\D/g, '')) || 0;
-      this.data.dailyClosing.thinh.otherExpense = o;
+      // Chi phí khác chia đều 50-50
+      this.data.dailyClosing.thinh.otherExpense = Math.round(o / 2);
+      this.data.dailyClosing.bu.otherExpense = Math.round(o / 2);
     }
     this.saveState();
     this.recalculateBalances();

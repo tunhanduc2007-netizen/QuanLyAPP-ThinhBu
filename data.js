@@ -25,8 +25,8 @@ const CLEAN_DATA = {
       status: "Sẵn sàng"
     }
   },
-  currentDate: "2026-09-12",
-  displayDate: "Thứ 6, 12/09/2026",
+  currentDate: "",
+  displayDate: "",
   
   // Doanh thu ban đầu bằng 0
   incomeOverview: {
@@ -101,7 +101,7 @@ const CLEAN_DATA = {
 
   // Bản chốt ngày ban đầu: Chưa chốt
   dailyClosing: {
-    date: "Thứ 6, 12/09/2026",
+    date: "",
     isClosed: false,
     walletRemaining: 0,
     fuelExpense: 0,
