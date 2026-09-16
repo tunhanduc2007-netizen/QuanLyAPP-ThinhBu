@@ -1139,11 +1139,11 @@
           <div class="sheet-title">Thao tác nhanh</div>
 
           <div class="sheet-actions-grid">
-            <div class="action-card-btn" onclick="app.openModal('tripModal'); app.closeBottomSheet();">
+            <div class="action-card-btn" onclick="app.openDailyRevenueModal(); app.closeBottomSheet();">
               <div class="action-icon" style="background: #E8F5E9; color: var(--primary-green);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
-              <span>Thêm chuyến</span>
+              <span>Ghi nhận doanh thu</span>
             </div>
 
             <div class="action-card-btn" onclick="app.openModal('scheduleModal'); app.closeBottomSheet();">
@@ -1191,70 +1191,6 @@
         </div>
       </div>
 
-      <!-- ==============================================
-           MODAL: THÊM CHUYẾN ĐI (CÓ TÍCH HỢP QUÉT ẢNH OCR)
-           ============================================== -->
-      <div class="modal-overlay" id="tripModal" onclick="app.closeModal('tripModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Thêm Chuyến Mới</div>
-
-          <!-- Nút Quét Ảnh OCR Nhanh -->
-          <div style="background: #F0FDF4; border: 1px dashed var(--primary-green); border-radius: 12px; padding: 10px; margin-bottom: 12px; text-align: center;">
-            <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--primary-green); font-size: 13px; font-weight: 700;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>📷 Quét tự động từ ảnh chụp màn hình (Tesseract.js)</span>
-              <input type="file" accept="image/*" style="display: none;" onchange="app.handleOcrScanTrip(this)">
-            </label>
-            <div id="ocrScanningNotice" style="display: none; margin-top: 8px;">
-              <div style="font-size: 11.5px; color: #0C7247; font-weight: 700; display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span id="ocrStatusText">⏳ Tesseract OCR: Đang quét...</span>
-                <span id="ocrPercentText">0%</span>
-              </div>
-              <div style="background: #DCFCE7; height: 6px; border-radius: 3px; overflow: hidden;">
-                <div id="ocrProgressBarFill" style="background: #0C7247; width: 0%; height: 100%; transition: width 0.2s ease;"></div>
-              </div>
-            </div>
-          </div>
-
-          <form id="addTripForm" onsubmit="app.handleSaveTrip(event)">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Người chạy</label>
-              <select class="form-select" id="tripDriverSelect">
-                <option value="thinh">Thịnh</option>
-                <option value="bu">Bu</option>
-              </select>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Thời gian</label>
-              <input type="time" class="form-input" id="tripTimeInput" required>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Số tiền (VNĐ)</label>
-              <input type="number" class="form-input" id="tripAmountInput" placeholder="VD: 50000" step="1000" required>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Hình thức thanh toán</label>
-              <select class="form-select" id="tripTypeSelect">
-                <option value="cash">Tiền mặt</option>
-                <option value="transfer">Chuyển khoản</option>
-              </select>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label">Mô tả / Lộ trình</label>
-              <input type="text" class="form-input" id="tripNoteInput" placeholder="VD: Đón khách sân bay" required>
-            </div>
-
-            <button type="submit" class="btn-primary">
-              ✓ Lưu Chuyến Đi
-            </button>
-          </form>
-        </div>
-      </div>
 
       <!-- ==============================================
            MODAL: GHI NHẬN DOANH THU NGÀY
