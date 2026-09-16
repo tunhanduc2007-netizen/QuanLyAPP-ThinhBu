@@ -127,8 +127,27 @@ class GrabOCR {
       note = 'Chuyến xe Grab';
     }
 
+    // 4. Trích xuất riêng Tiền mặt và Chuyển khoản từ màn hình tổng kết Grab Driver
+    // Grab Driver thường có dạng: "Tiền mặt 120.000" / "Chuyển khoản 300.000"
+    let cashAmount = null;
+    let transferAmount = null;
+    let tripsCount = null;
+
+    const cashMatch = clean.match(/ti[eê]n\s*m[aặ]t[\s:]*(\d{1,3}(?:\.\d{3})+|\d{4,})/i);
+    if (cashMatch) cashAmount = parseInt(cashMatch[1].replace(/\./g, ''));
+
+    const transferMatch = clean.match(/chuy[eể]n\s*kho[aả]n[\s:]*(\d{1,3}(?:\.\d{3})+|\d{4,})/i);
+    if (transferMatch) transferAmount = parseInt(transferMatch[1].replace(/\./g, ''));
+
+    // Số chuyến: "12 chuyến", "12 cuốc", "12 trips"
+    const tripsMatch = clean.match(/(\d{1,3})\s*(?:chuy[eế]n|cu[oố]c|trips?)/i);
+    if (tripsMatch) tripsCount = parseInt(tripsMatch[1]);
+
     return {
       amount: amount || 50000,
+      cash: cashAmount,
+      transfer: transferAmount,
+      trips: tripsCount,
       time: time || '18:00',
       paymentType: isTransfer ? 'transfer' : 'cash',
       category,

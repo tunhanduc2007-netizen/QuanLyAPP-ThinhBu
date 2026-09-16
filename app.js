@@ -907,6 +907,65 @@ class GrabApp {
     this.openModal('dailyRevenueModal');
   }
 
+  async handleOcrScanDailyRevenue(fileInput) {
+    if (!fileInput.files || !fileInput.files[0]) return;
+    const file = fileInput.files[0];
+    const notice  = document.getElementById('ocrDrScanningNotice');
+    const bar     = document.getElementById('ocrDrProgressBarFill');
+    const pct     = document.getElementById('ocrDrPercentText');
+    const status  = document.getElementById('ocrDrStatusText');
+
+    if (notice) notice.style.display = 'block';
+    if (bar) bar.style.width = '10%';
+    if (pct) pct.textContent = '10%';
+    if (status) status.textContent = '⏳ Tesseract OCR: Đang nạp mô hình...';
+
+    try {
+      const scanned = await window.grabOCR.scanImage(file, (percent) => {
+        if (bar) bar.style.width = `${percent}%`;
+        if (pct) pct.textContent = `${percent}%`;
+        if (status) {
+          status.textContent = percent < 90
+            ? `⏳ Đang quét ảnh tổng kết (${percent}%)...`
+            : '✨ Đang trích xuất doanh thu...';
+        }
+      });
+
+      // Điền vào form dựa theo loại thanh toán nhận diện được
+      const cashEl     = document.getElementById('drCashInput');
+      const transferEl = document.getElementById('drTransferInput');
+      const tripsEl    = document.getElementById('drTripsInput');
+      const driverEl   = document.getElementById('drDriverSelect');
+
+      if (scanned.amount > 0) {
+        // Nếu phân biệt được cash/transfer → điền đúng ô
+        if (scanned.paymentType === 'transfer') {
+          if (transferEl) transferEl.value = scanned.amount;
+        } else {
+          if (cashEl) cashEl.value = scanned.amount;
+        }
+        // Nếu scan thấy cả cash lẫn transfer riêng
+        if (scanned.cash && cashEl)         cashEl.value     = scanned.cash;
+        if (scanned.transfer && transferEl) transferEl.value = scanned.transfer;
+      }
+      if (scanned.trips && tripsEl)       tripsEl.value    = scanned.trips;
+      if (scanned.driverHint && driverEl) driverEl.value   = scanned.driverHint;
+
+      const total = (parseInt(cashEl?.value) || 0) + (parseInt(transferEl?.value) || 0);
+      this.showToast(`✨ OCR nhận diện (${scanned.method}): ${this.formatMoney(total)} — Kiểm tra và nhấn Lưu!`);
+    } catch (e) {
+      console.error(e);
+      this.showToast('Không thể phân tích ảnh. Vui lòng nhập thủ công!');
+    } finally {
+      setTimeout(() => {
+        if (notice) notice.style.display = 'none';
+        if (bar) bar.style.width = '0%';
+        if (pct) pct.textContent = '0%';
+      }, 800);
+      fileInput.value = '';
+    }
+  }
+
   openTripActions(tripId) {
     const trip = (this.data.trips || []).find(t => t.id === tripId);
     if (!trip) return;
