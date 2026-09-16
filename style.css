@@ -48,180 +48,67 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
+html, body {
   font-family: var(--font-sans);
-  background-color: #E2E8F0;
+  background-color: var(--bg-app);
   color: var(--text-main);
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 16px 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 /* ===================================================
-   DESKTOP TOP SCREEN SELECTOR
-   Quick jump to review each of the 8 screens
+   APP ROOT (Full Viewport 100% Width & Height)
    =================================================== */
-.desktop-bar {
-  width: 100%;
-  max-width: 960px;
-  background: #FFFFFF;
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 1000;
-}
-
-.desktop-bar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-}
-
-.desktop-bar-header .badge {
-  background: var(--primary-green-light);
-  color: var(--primary-green);
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
-  font-size: 11px;
-}
-
-.screen-switcher-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.screen-btn {
-  background: #F1F5F9;
-  border: 1px solid #CBD5E1;
-  color: #475569;
-  padding: 6px 12px;
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.screen-btn:hover {
-  background: #E2E8F0;
-  color: #1E293B;
-}
-
-.screen-btn.active {
-  background: var(--primary-green);
-  border-color: var(--primary-green);
-  color: #FFFFFF;
-  box-shadow: 0 2px 6px rgba(12, 114, 71, 0.3);
-}
-
-/* ===================================================
-   DEVICE FRAME (iPhone Mockup)
-   =================================================== */
-.device-container {
-  position: relative;
-  width: 100%;
-  max-width: 410px;
-  height: 874px;
-  background: #000000;
-  border-radius: 46px;
-  padding: 10px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
+.app-root,
+.device-container,
 .device-screen {
   position: relative;
   width: 100%;
-  height: 100%;
+  width: 100vw;
+  min-height: 100vh;
   background-color: var(--bg-app);
-  border-radius: 38px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-/* Status Bar */
-.status-bar {
-  height: 44px;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 14px;
-  font-weight: 600;
-  color: #FFFFFF;
-  background-color: var(--primary-green);
-  z-index: 50;
-  flex-shrink: 0;
-}
-
-.status-time {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-}
-
-.status-icons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.status-icons svg {
-  width: 16px;
-  height: 16px;
-  fill: currentColor;
-}
-
-/* Dynamic Island Notch */
+/* Ẩn triệt để các phần tử giả lập */
+.desktop-bar,
+.status-bar,
 .dynamic-island {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 90px;
-  height: 22px;
-  background: #000000;
-  border-radius: 20px;
-  z-index: 60;
-  pointer-events: none;
+  display: none !important;
 }
 
 /* ===================================================
-   APP HEADER
+   APP HEADER (Full Width Bar, Centered Controls)
    =================================================== */
 .app-header {
+  width: 100%;
   background-color: var(--primary-green);
   color: #FFFFFF;
-  padding: 8px 18px 18px 18px;
+  padding: max(14px, env(safe-area-inset-top)) 16px 14px 16px;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(12, 114, 71, 0.15);
-  border-bottom-left-radius: 4px;
-  border-bottom-right-radius: 4px;
+  box-shadow: 0 4px 14px rgba(12, 114, 71, 0.2);
+  z-index: 50;
 }
 
+.header-container,
 .header-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
   min-height: 40px;
 }
 
@@ -279,6 +166,32 @@ body {
   gap: 8px;
 }
 
+.header-right .badge {
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.header-right .form-select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 11px;
+  height: 28px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  outline: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .notif-btn {
   position: relative;
 }
@@ -295,31 +208,36 @@ body {
 }
 
 /* ===================================================
-   MAIN CONTENT SCROLLER
+   MAIN CONTENT SCROLLER (Full Viewport Width)
    =================================================== */
 .app-content {
   flex: 1;
+  width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 14px 16px 85px 16px;
+  padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 20px)) 16px;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
 
 .app-content::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
 }
 
 .app-content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 4px;
 }
 
-/* Screen Wrapper */
+/* Screen Wrapper (Căn giữa nội dung thẻ, responsive tự nhiên) */
 .screen-view {
   display: none;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  box-sizing: border-box;
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1437,26 +1355,33 @@ body {
 }
 
 /* ===================================================
-   BOTTOM NAVIGATION (Floating, Glassmorphism, Nổi Bật)
+   BOTTOM NAVIGATION (Fixed, Full Viewport, Glassmorphism)
    =================================================== */
 .bottom-nav {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 72px;
+  width: 100%;
+  height: calc(68px + env(safe-area-inset-bottom, 0px));
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid rgba(226, 232, 240, 0.85);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
-  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px max(6px, env(safe-area-inset-bottom)) 16px;
+  z-index: 1000;
+}
+
+.bottom-nav-inner {
+  width: 100%;
+  max-width: 960px;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 0 8px 6px 8px;
-  z-index: 70;
 }
 
 .nav-item {
@@ -1470,7 +1395,8 @@ body {
   color: #64748B;
   font-size: 11px;
   font-weight: 600;
-  width: 60px;
+  flex: 1;
+  max-width: 140px;
   position: relative;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 4px 0;
@@ -1572,17 +1498,20 @@ body {
    BOTTOM SHEET & MODALS
    =================================================== */
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(2px);
-  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 1500;
   display: none;
   align-items: flex-end;
+  justify-content: center;
   animation: fadeIn 0.2s ease;
+  box-sizing: border-box;
 }
 
 .modal-overlay.active {
@@ -1591,17 +1520,20 @@ body {
 
 .bottom-sheet {
   width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
   background: #FFFFFF;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
-  padding: 12px 18px 28px 18px;
-  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.2);
+  padding: 16px 20px max(28px, env(safe-area-inset-bottom)) 20px;
+  box-shadow: 0 -10px 35px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-height: 85%;
+  max-height: 85vh;
   overflow-y: auto;
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
 }
 
 @keyframes slideUp {
@@ -1692,25 +1624,25 @@ body {
 
 /* Toast Message */
 .toast-notice {
-  position: absolute;
-  top: 60px;
+  position: fixed;
+  top: 24px;
   left: 50%;
   transform: translateX(-50%) translateY(-20px);
   background: rgba(30, 41, 59, 0.95);
   color: #FFFFFF;
-  padding: 10px 18px;
+  padding: 10px 20px;
   border-radius: var(--radius-pill);
   font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 200;
+  z-index: 2500;
   opacity: 0;
   pointer-events: none;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   white-space: nowrap;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
 .toast-notice.show {
@@ -1720,18 +1652,19 @@ body {
 
 /* Fullscreen Photo Lightbox */
 .lightbox-modal {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background: rgba(0, 0, 0, 0.92);
-  z-index: 150;
+  z-index: 2200;
   display: none;
   flex-direction: column;
   justify-content: space-between;
-  padding: 40px 16px 20px 16px;
+  padding: max(30px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)) 20px;
   color: #FFFFFF;
+  box-sizing: border-box;
 }
 
 .lightbox-modal.active {
@@ -1761,96 +1694,26 @@ body {
 }
 
 /* ===================================================
-   RESPONSIVE (CHUẨN GIAO DIỆN NATIVE CHO ĐIỆN THOẠI THẬT)
+   RESPONSIVE UTILITIES (Mobile & Desktop Native)
    =================================================== */
-@media (max-width: 768px), (pointer: coarse) and (max-width: 1024px) {
-  html, body {
-    width: 100% !important;
-    height: 100% !important;
-    min-height: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background-color: var(--bg-app) !important;
-    overflow: hidden !important;
-  }
-
-  /* Ẩn thanh công cụ review desktop trên điện thoại */
-  .desktop-bar {
-    display: none !important;
-  }
-
-  /* Khung máy tràn 100% màn hình, bỏ khung viền đen và bóng giả lập */
-  .device-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    height: 100% !important;
-    height: 100dvh !important;
-    min-height: 100dvh !important;
-    max-height: 100dvh !important;
-    border-radius: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: var(--bg-app) !important;
-  }
-
-  .device-screen {
-    width: 100% !important;
-    height: 100% !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    overflow: hidden !important;
-  }
-
-  /* ẨN HOÀN TOÀN THANH STATUS BAR VÀ TAI THỎ GIẢ (Vì điện thoại đã có sẵn đồng hồ, pin thật) */
-  .status-bar,
-  .dynamic-island {
-    display: none !important;
-  }
-
-  /* App header tự căn chỉnh theo tai thỏ / notch thật của máy */
+@media (max-width: 600px) {
   .app-header {
-    padding-top: max(14px, env(safe-area-inset-top)) !important;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-    border-radius: 0 !important;
+    padding-left: 12px;
+    padding-right: 12px;
   }
-
-  /* Menu vuốt bên trái cũng đệm theo tai thỏ máy */
-  .drawer-header {
-    padding-top: max(20px, env(safe-area-inset-top)) !important;
-  }
-
-  /* Thanh Bottom Navigation ghim cố định ở đáy, bo tròn thanh lịch và an toàn thanh vuốt Home */
-  .bottom-nav {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    border-radius: 24px 24px 0 0 !important;
-    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
-    height: calc(66px + env(safe-area-inset-bottom, 0px)) !important;
-    z-index: 1000 !important;
-  }
-
-  /* Nội dung cuộn có đủ khoảng đệm để không bị thanh Bottom Nav che mất thẻ cuối */
+  
   .app-content {
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 20px)) !important;
-    -webkit-overflow-scrolling: touch !important;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  
+  .bottom-nav {
+    padding-left: 8px;
+    padding-right: 8px;
   }
 
-  /* Lightbox ảnh tràn viền */
-  .lightbox-modal {
-    padding-top: max(30px, env(safe-area-inset-top)) !important;
-    padding-bottom: max(20px, env(safe-area-inset-bottom)) !important;
-  }
-
-  /* Bottom sheet modal đệm theo đáy */
-  .bottom-sheet {
-    padding-bottom: max(24px, env(safe-area-inset-bottom)) !important;
-    border-radius: 24px 24px 0 0 !important;
+  .nav-item span {
+    font-size: 10px;
   }
 }
 
@@ -1858,18 +1721,18 @@ body {
    SIDE DRAWER MENU (Bám sát 100% Ảnh Reference 2)
    =================================================== */
 .drawer-backdrop {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 2000;
   opacity: 0;
   visibility: hidden;
   transition: all 0.25s ease;
-  border-radius: inherit;
 }
 
 .drawer-backdrop.active {
@@ -1878,12 +1741,12 @@ body {
 }
 
 .side-drawer {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  right: 0;
   bottom: 0;
-  width: 100%;
+  width: 88%;
+  max-width: 380px;
   height: 100%;
   background: #F8FAFC;
   z-index: 2001;
@@ -1891,9 +1754,8 @@ body {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
-  border-radius: inherit;
   overflow: hidden;
-  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.25);
+  box-shadow: 6px 0 32px rgba(0, 0, 0, 0.25);
 }
 
 .side-drawer.active {
