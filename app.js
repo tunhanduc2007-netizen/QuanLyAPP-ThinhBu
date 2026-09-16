@@ -5,14 +5,35 @@
  */
 
 class GrabApp {
+  getTodayInfo() {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+    const dayName = dayNames[dayOfWeek];
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    return {
+      date: now,
+      day: now.getDate(),
+      month: now.getMonth() + 1,
+      year: yyyy,
+      dayName,
+      dateStr: `${dd}/${mm}/${yyyy}`,
+      displayStr: `${dayName}, ${dd}/${mm}/${yyyy}`,
+      isoDate: `${yyyy}-${mm}-${dd}`
+    };
+  }
+
   constructor() {
     this.storageKey = 'grab_management_state_v2';
     this.currentScreen = 'screen-overview';
     
-    // Khởi tạo trạng thái cuốn lịch chung (Bắt đầu từ tháng 9 năm 2026)
-    this.currentCalYear = 2026;
-    this.currentCalMonth = 9; // Tháng 9
-    this.selectedDay = 12; // Mặc định ngày 12/09/2026
+    // Tự động nhận diện chính xác ngày hôm nay theo thời gian thực
+    const today = this.getTodayInfo();
+    this.currentCalYear = today.year;
+    this.currentCalMonth = today.month;
+    this.selectedDay = today.day;
     this.activeSlot = null;
     this.activeLightboxImgId = null;
     
@@ -76,9 +97,12 @@ class GrabApp {
       return;
     }
     this.data = JSON.parse(JSON.stringify(CLEAN_DATA));
-    this.selectedDay = 12;
-    this.currentCalMonth = 9;
-    this.currentCalYear = 2026;
+    const today = this.getTodayInfo();
+    this.selectedDay = today.day;
+    this.currentCalMonth = today.month;
+    this.currentCalYear = today.year;
+    this.data.currentDate = today.isoDate;
+    this.data.displayDate = today.displayStr;
     
     // Xóa các input nếu có
     const walletInput = document.getElementById('closeInputWallet');
@@ -554,17 +578,20 @@ class GrabApp {
     const hasThinhShifts = (this.data.schedules || []).some(s => s.thinhStatus === 'completed');
     const hasBuShifts = (this.data.schedules || []).some(s => s.buStatus === 'completed');
 
+    const today = this.getTodayInfo();
+
     for (let d = 1; d <= daysInMonth; d++) {
-      const isSelected = (d === this.selectedDay && this.currentCalMonth === 9 && this.currentCalYear === 2026);
+      const isSelected = (d === this.selectedDay);
+      const isToday = (d === today.day && this.currentCalMonth === today.month && this.currentCalYear === today.year);
 
       let dotsHtml = '';
-      if (d === 12 && this.currentCalMonth === 9 && this.currentCalYear === 2026) {
+      if (isToday) {
         if (hasThinhShifts) dotsHtml += `<span class="cal-dot thinh" title="Thịnh chạy"></span>`;
         if (hasBuShifts) dotsHtml += `<span class="cal-dot bu" title="Bu chạy"></span>`;
       }
 
       html += `
-        <div class="cal-day-cell ${isSelected ? 'selected' : ''}" onclick="app.selectCalendarDate(${d})">
+        <div class="cal-day-cell ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}" onclick="app.selectCalendarDate(${d})" title="${isToday ? 'Hôm nay' : `Ngày ${d}`}">
           <span>${d}</span>
           <div class="cal-day-dots">${dotsHtml}</div>
         </div>
@@ -572,15 +599,18 @@ class GrabApp {
     }
 
     grid.innerHTML = html;
+    this.updateScheduleDateLabel();
   }
 
-  selectCalendarDate(day) {
-    this.selectedDay = day;
-    const dateObj = new Date(this.currentCalYear, this.currentCalMonth - 1, day);
+  updateScheduleDateLabel() {
+    const dateObj = new Date(this.currentCalYear, this.currentCalMonth - 1, this.selectedDay);
     const dayOfWeek = dateObj.getDay();
     const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
     const dayName = dayNames[dayOfWeek];
-    const dateStr = `${dayName}, ${String(day).padStart(2, '0')}/${String(this.currentCalMonth).padStart(2, '0')}/${this.currentCalYear}`;
+    const dd = String(this.selectedDay).padStart(2, '0');
+    const mm = String(this.currentCalMonth).padStart(2, '0');
+    const yyyy = this.currentCalYear;
+    const dateStr = `${dayName}, ${dd}/${mm}/${yyyy}`;
 
     const dateLabel = document.getElementById('selectedScheduleDateLabel');
     if (dateLabel) {
@@ -589,10 +619,24 @@ class GrabApp {
         ${dateStr}
       `;
     }
+    return dateStr;
+  }
 
+  selectCalendarDate(day) {
+    this.selectedDay = day;
+    const dateStr = this.updateScheduleDateLabel();
     this.renderCalendarBook();
     this.renderSchedule();
     this.showToast(`📅 Đã mở lịch ngày ${dateStr}`);
+  }
+
+  goToTodaySchedule() {
+    const today = this.getTodayInfo();
+    this.currentCalYear = today.year;
+    this.currentCalMonth = today.month;
+    this.selectedDay = today.day;
+    this.selectCalendarDate(today.day);
+    this.showToast(`📅 Đã chuyển về đúng ngày hôm nay (${today.displayStr})!`);
   }
 
   changeCalendarMonth(delta) {

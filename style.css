@@ -767,6 +767,30 @@ html, body {
   box-shadow: 0 4px 10px rgba(12, 114, 71, 0.35);
 }
 
+.cal-day-cell.today:not(.selected) {
+  border: 1.5px solid var(--primary-green);
+  color: var(--primary-green);
+  font-weight: 800;
+  background: #E8F5E9;
+}
+
+.btn-today-chip {
+  background: #E8F5E9;
+  color: var(--primary-green);
+  border: 1px solid rgba(12, 114, 71, 0.25);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-today-chip:hover {
+  background: var(--primary-green);
+  color: #FFFFFF;
+}
+
 .cal-day-cell.empty {
   cursor: default;
   pointer-events: none;
