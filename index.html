@@ -74,151 +74,132 @@
             </div>
           </div>
 
-          <!-- Section Danh Mục 8 Màn Hình -->
-          <div class="drawer-section-title">DANH MỤC</div>
+          <!-- NHÓM 1: XE & LỊCH TRÌNH -->
+          <div class="drawer-section-title">🛵 XE & LỊCH TRÌNH</div>
           <div class="drawer-menu-list">
-            
-            <!-- 1. Tổng quan -->
-            <div class="drawer-item-card active" data-screen="screen-overview" onclick="app.navigateToScreenFromDrawer('screen-overview')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon green">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">1.</span>
-                    <span class="drawer-title-bold">Tổng quan</span>
-                  </div>
-                  <span class="drawer-item-desc">Xem nhanh doanh thu, chuyến, ví...</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- 2. Lịch chạy -->
+            <!-- Lịch chạy 2 người -->
             <div class="drawer-item-card" data-screen="screen-schedule" onclick="app.navigateToScreenFromDrawer('screen-schedule')">
               <div class="drawer-item-left">
                 <div class="drawer-item-icon blue">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                 </div>
                 <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">2.</span>
-                    <span class="drawer-title-bold">Lịch chạy (Cuốn lịch)</span>
-                  </div>
-                  <span class="drawer-item-desc">Xem và đăng ký lịch chạy</span>
+                  <div class="drawer-title-bold">Lịch chạy 2 người</div>
+                  <span class="drawer-item-desc">Phân chia khung giờ, cuốn lịch tháng</span>
                 </div>
               </div>
               <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
 
-            <!-- 3. Thu nhập & Chuyến -->
-            <div class="drawer-item-card" data-screen="screen-income" onclick="app.navigateToScreenFromDrawer('screen-income')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon mint">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">3.</span>
-                    <span class="drawer-title-bold">Thu nhập & Chuyến</span>
-                  </div>
-                  <span class="drawer-item-desc">Quản lý doanh thu, tiền mặt, chuyển khoản</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- 4. Note / Chốt cuối ngày -->
-            <div class="drawer-item-card" data-screen="screen-notes" onclick="app.navigateToScreenFromDrawer('screen-notes')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon purple">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">4.</span>
-                    <span class="drawer-title-bold">Note / Chốt cuối ngày</span>
-                  </div>
-                  <span class="drawer-item-desc">Ghi chú, chốt sổ, quản lý ví và chi phí</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- 5. Hình ảnh -->
-            <div class="drawer-item-card" data-screen="screen-images" onclick="app.navigateToScreenFromDrawer('screen-images')">
+            <!-- Sổ bảo dưỡng xe -->
+            <div class="drawer-item-card" onclick="app.openMaintenanceModal(); app.closeSideMenu();">
               <div class="drawer-item-left">
                 <div class="drawer-item-icon orange">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                 </div>
                 <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">5.</span>
-                    <span class="drawer-title-bold">Hình ảnh</span>
-                  </div>
-                  <span class="drawer-item-desc">Lưu ảnh chốt cuối ngày, hóa đơn, giao dịch</span>
+                  <div class="drawer-title-bold">Sổ bảo dưỡng xe (LubeLogger)</div>
+                  <span class="drawer-item-desc">Đồng hồ ODO, thay nhớt, sửa xe chung</span>
                 </div>
               </div>
               <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
+          </div>
 
-            <!-- 6. Báo cáo & Thống kê -->
-            <div class="drawer-item-card" data-screen="screen-reports" onclick="app.navigateToScreenFromDrawer('screen-reports')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon cyan">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">6.</span>
-                    <span class="drawer-title-bold">Báo cáo & Thống kê</span>
-                  </div>
-                  <span class="drawer-item-desc">Xem số liệu, biểu đồ, hiệu suất</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- 7. Chốt ngày & Đối soát -->
+          <!-- NHÓM 2: TÀI CHÍNH & ĐỐI SOÁT -->
+          <div class="drawer-section-title">💰 TÀI CHÍNH & ĐỐI SOÁT</div>
+          <div class="drawer-menu-list">
+            <!-- Chốt ca & Chia tiền Spliit -->
             <div class="drawer-item-card" data-screen="screen-closing" onclick="app.navigateToScreenFromDrawer('screen-closing')">
               <div class="drawer-item-left">
                 <div class="drawer-item-icon rose">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 </div>
                 <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">7.</span>
-                    <span class="drawer-title-bold">Chốt ngày & Đối soát</span>
-                  </div>
-                  <span class="drawer-item-desc">Xác nhận chi tiết, lưu dữ liệu</span>
+                  <div class="drawer-title-bold">Chốt ca & Chia tiền (Spliit)</div>
+                  <span class="drawer-item-desc">Đối soát nợ, xăng xe, tiền mặt & ví</span>
                 </div>
               </div>
               <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
 
-            <!-- 8. Màn hình Hôm nay -->
-            <div class="drawer-item-card" data-screen="screen-today" onclick="app.navigateToScreenFromDrawer('screen-today')">
+            <!-- Thu nhập & Chuyến -->
+            <div class="drawer-item-card" data-screen="screen-income" onclick="app.navigateToScreenFromDrawer('screen-income')">
+              <div class="drawer-item-left">
+                <div class="drawer-item-icon mint">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
+                </div>
+                <div class="drawer-item-text">
+                  <div class="drawer-title-bold">Thu nhập & Chuyến xe</div>
+                  <span class="drawer-item-desc">Chi tiết từng cuốc xe Grab</span>
+                </div>
+              </div>
+              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+
+            <!-- Báo cáo & Biểu đồ -->
+            <div class="drawer-item-card" data-screen="screen-reports" onclick="app.navigateToScreenFromDrawer('screen-reports')">
+              <div class="drawer-item-left">
+                <div class="drawer-item-icon cyan">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </div>
+                <div class="drawer-item-text">
+                  <div class="drawer-title-bold">Báo cáo & Biểu đồ (Chart.js)</div>
+                  <span class="drawer-item-desc">So sánh Thịnh vs Bu, tỷ trọng tiền mặt/CK</span>
+                </div>
+              </div>
+              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+
+            <!-- Kho ảnh chứng từ -->
+            <div class="drawer-item-card" data-screen="screen-images" onclick="app.navigateToScreenFromDrawer('screen-images')">
+              <div class="drawer-item-left">
+                <div class="drawer-item-icon purple">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                </div>
+                <div class="drawer-item-text">
+                  <div class="drawer-title-bold">Kho ảnh chốt & Hóa đơn</div>
+                  <span class="drawer-item-desc">Ảnh chốt app Grab, biên lai đổ xăng</span>
+                </div>
+              </div>
+              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+
+          <!-- NHÓM 3: NHẬT KÝ & GHI CHÚ -->
+          <div class="drawer-section-title">📝 NHẬT KÝ & GHI CHÚ</div>
+          <div class="drawer-menu-list">
+            <!-- Sổ Note -->
+            <div class="drawer-item-card" data-screen="screen-notes" onclick="app.navigateToScreenFromDrawer('screen-notes')">
               <div class="drawer-item-left">
                 <div class="drawer-item-icon lilac">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                </div>
+                <div class="drawer-item-text">
+                  <div class="drawer-title-bold">Sổ Note & Bàn giao ca</div>
+                  <span class="drawer-item-desc">Dặn dò, ghi chú xe giữa 2 người</span>
+                </div>
+              </div>
+              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+
+            <!-- Tổng kết hôm nay -->
+            <div class="drawer-item-card" data-screen="screen-today" onclick="app.navigateToScreenFromDrawer('screen-today')">
+              <div class="drawer-item-left">
+                <div class="drawer-item-icon green">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                    <circle cx="6" cy="18" r="3"/>
-                    <circle cx="18" cy="18" r="3"/>
+                    <circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
                     <path d="M6 15h5l3-6h4v2h-3l-2 4h5a1 1 0 0 1 1 1v2h-2a3 3 0 0 0-6 0H9a3 3 0 0 0-6 0H1v-2a1 1 0 0 1 1-1h4z"/>
                     <path d="M14 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
                   </svg>
                 </div>
                 <div class="drawer-item-text">
-                  <div class="drawer-item-title-row">
-                    <span class="drawer-num-badge">8.</span>
-                    <span class="drawer-title-bold">Màn hình Hôm nay</span>
-                  </div>
-                  <span class="drawer-item-desc">Tổng kết nhanh trong ngày</span>
+                  <div class="drawer-title-bold">Tổng kết ngày hôm nay</div>
+                  <span class="drawer-item-desc">Tóm tắt số chuyến & tiền ròng</span>
                 </div>
               </div>
               <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
             </div>
-
           </div>
 
           <!-- Section Công Cụ Quản Trị -->
@@ -1127,6 +1108,14 @@
             <span>Lịch chạy</span>
           </button>
 
+          <!-- NÚT THAO TÁC NHANH NỔI BẬT DẠNG FAB Ở GIỮA -->
+          <button class="nav-item nav-fab-btn" onclick="app.openBottomSheet()" title="Thao tác nhanh">
+            <div class="nav-fab-circle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </div>
+            <span>Thêm</span>
+          </button>
+
           <button class="nav-item" data-target="screen-income" onclick="app.navigateToScreen('screen-income')">
             <div class="nav-icon-box">
               <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5a2.5 2.5 0 0 0-5 0c0 4 5 1 5 5a2.5 2.5 0 0 1-5 0"/></svg>
@@ -1134,19 +1123,11 @@
             <span>Thu nhập</span>
           </button>
 
-          <button class="nav-item" data-target="screen-notes" onclick="app.navigateToScreen('screen-notes')">
+          <button class="nav-item" data-target="screen-closing" onclick="app.navigateToScreen('screen-closing')">
             <div class="nav-icon-box">
-              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </div>
-            <span>Note</span>
-          </button>
-
-          <!-- NÚT THAO TÁC NHANH NỔI BẬT DẠNG FAB -->
-          <button class="nav-item nav-fab-btn" onclick="app.openBottomSheet()" title="Thao tác nhanh">
-            <div class="nav-fab-circle">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </div>
-            <span>Thêm</span>
+            <span>Chốt ca</span>
           </button>
         </div>
       </nav>
