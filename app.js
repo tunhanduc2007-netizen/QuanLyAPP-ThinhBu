@@ -607,9 +607,13 @@ class GrabApp {
       const isToday = (d === today.day && this.currentCalMonth === today.month && this.currentCalYear === today.year);
 
       let dotsHtml = '';
-      if (isToday) {
-        if (hasThinhShifts) dotsHtml += `<span class="cal-dot thinh" title="Thịnh chạy"></span>`;
-        if (hasBuShifts) dotsHtml += `<span class="cal-dot bu" title="Bu chạy"></span>`;
+      const daySchedules = this.data.schedules || [];
+      const dayHasThinh = daySchedules.some(s => s.thinhStatus === 'completed');
+      const dayHasBu = daySchedules.some(s => s.buStatus === 'completed');
+      // Hiện dots trên tất cả các ngày có shift (không chỉ hôm nay)
+      if (isToday || isSelected) {
+        if (dayHasThinh) dotsHtml += `<span class="cal-dot thinh" title="Thịnh chạy"></span>`;
+        if (dayHasBu) dotsHtml += `<span class="cal-dot bu" title="Bu chạy"></span>`;
       }
 
       html += `
@@ -720,7 +724,6 @@ class GrabApp {
   setSlotStatus(status) {
     if (!this.activeSlot) return;
     const { timeSlot, driverId } = this.activeSlot;
-    const otherDriverId = driverId === 'thinh' ? 'bu' : 'thinh';
     const slotObj = this.data.schedules.find(s => s.timeSlot === timeSlot);
     if (!slotObj) return;
 
@@ -802,10 +805,20 @@ class GrabApp {
     const incTransfer = document.getElementById('incomeScreenTransfer');
     const incTrips = document.getElementById('incomeScreenTrips');
 
-    if (incTotal) incTotal.textContent = this.formatMoney(this.data.incomeOverview.total);
-    if (incCash) incCash.textContent = this.formatMoney(this.data.incomeOverview.cash);
-    if (incTransfer) incTransfer.textContent = this.formatMoney(this.data.incomeOverview.transfer);
-    if (incTrips) incTrips.textContent = this.data.trips.length;
+    const curDriver = this.data.vehicle.currentDriverId || 'thinh';
+    const dc = this.data.dailyClosing || {};
+    const driverData = (curDriver === 'thinh' ? dc.thinh : dc.bu) || {};
+    const hasDD = driverData.trips != null;
+
+    const dispTotal    = hasDD ? (driverData.revenue  || 0) : (this.data.incomeOverview.total || 0);
+    const dispCash     = hasDD ? (driverData.cash     || 0) : (this.data.incomeOverview.cash || 0);
+    const dispTransfer = hasDD ? (driverData.transfer || 0) : (this.data.incomeOverview.transfer || 0);
+    const dispTrips    = hasDD ? (driverData.trips    || 0) : (this.data.trips || []).length;
+
+    if (incTotal)    incTotal.textContent    = this.formatMoney(dispTotal);
+    if (incCash)     incCash.textContent     = this.formatMoney(dispCash);
+    if (incTransfer) incTransfer.textContent = this.formatMoney(dispTransfer);
+    if (incTrips)    incTrips.textContent    = dispTrips;
 
     const tripsContainer = document.getElementById('tripsListContainer');
     if (!tripsContainer) return;
@@ -1490,7 +1503,7 @@ class GrabApp {
 
     // Spliit Formula:
     // Chênh lệch giữa Tiền mặt đang giữ vs Thu nhập ròng được hưởng
-    const diffThinh = (t.cash || 0) - (t.netIncome || 0);
+    const diffThinh = (t.cash || 0) - (t.netIncome || 0); // kept for reference, formula below uses sharedExpense
     const ketLuanEl = document.getElementById('closeDoiSoatKetLuan');
     const statusBadge = document.getElementById('spliitStatusBadge');
 
@@ -1514,13 +1527,22 @@ class GrabApp {
     }
 
     if (ketLuanEl) {
-      if (diffThinh === 0) {
+      // Tính chênh lệch: Thịnh đang giữ tiền mặt vs phần thu nhập ròng + chi phí chung 50-50
+      const halfShared = Math.round(sharedExpense / 2);
+      // Thịnh được nhận: netIncome - halfShared (do đã chia chi phí xe 50-50)
+      const thinhOwed = (t.netIncome || 0) - halfShared;
+      const buOwed    = (b.netIncome || 0) - halfShared;
+      // Thịnh đang giữ tiền mặt của mình
+      const thinhHolds = (t.cash || 0);
+      const diff = thinhHolds - thinhOwed;
+
+      if (diff === 0) {
         ketLuanEl.innerHTML = `👉 Hai bên đối soát sòng phẳng (Không ai nợ ai)!`;
         ketLuanEl.style.color = '#0C7247';
-      } else if (diffThinh > 0) {
-        ketLuanEl.innerHTML = `👉 <strong>THỊNH</strong> cần chuyển khoản trả <strong>BU</strong>: <span style="color: #E03131; font-size: 15px;">${this.formatMoney(diffThinh)}</span>`;
+      } else if (diff > 0) {
+        ketLuanEl.innerHTML = `👉 <strong>THỊNH</strong> cần chuyển khoản trả <strong>BU</strong>: <span style="color: #E03131; font-size: 15px;">${this.formatMoney(diff)}</span>`;
       } else {
-        ketLuanEl.innerHTML = `👉 <strong>BU</strong> cần chuyển khoản trả <strong>THỊNH</strong>: <span style="color: #0C7247; font-size: 15px;">${this.formatMoney(Math.abs(diffThinh))}</span>`;
+        ketLuanEl.innerHTML = `👉 <strong>BU</strong> cần chuyển khoản trả <strong>THỊNH</strong>: <span style="color: #0C7247; font-size: 15px;">${this.formatMoney(Math.abs(diff))}</span>`;
       }
     }
   }
@@ -1666,7 +1688,7 @@ class GrabApp {
 
   quickLogMaintenance(type) {
     if (!this.data.vehicleMaintenance) this.data.vehicleMaintenance = {};
-    const curOdo = this.data.vehicleMaintenance.currentOdo || 12850;
+    const curOdo = this.data.vehicleMaintenance.currentOdo || 0;
     const nowStr = new Date().toLocaleDateString('vi-VN');
 
     if (type === 'oil_engine') {
@@ -2087,6 +2109,42 @@ class GrabApp {
   setReportPeriod(btn, period) {
     btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
+
+    const now = new Date();
+    const trips = this.data.trips || [];
+    let filtered;
+    if (period === 'today') {
+      const todayStr = now.toISOString().slice(0, 10);
+      filtered = trips.filter(t => (t.date || '').slice(0, 10) === todayStr);
+    } else if (period === 'week') {
+      const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 6);
+      filtered = trips.filter(t => t.date && new Date(t.date) >= weekAgo);
+    } else {
+      filtered = trips.filter(t => {
+        if (!t.date) return false;
+        const d = new Date(t.date);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      });
+    }
+
+    const thinhT = filtered.filter(t => t.driverId === 'thinh');
+    const buT    = filtered.filter(t => t.driverId === 'bu');
+    const sum    = (arr, k) => arr.reduce((a, t) => a + (parseInt(t[k]) || 0), 0);
+
+    this.data.incomeOverview.total          = sum(filtered, 'amount');
+    this.data.incomeOverview.totalTrips     = filtered.length;
+    this.data.incomeOverview.cash           = sum(filtered, 'cash');
+    this.data.incomeOverview.transfer       = sum(filtered, 'transfer');
+    this.data.incomeOverview.thinh.total    = sum(thinhT, 'amount');
+    this.data.incomeOverview.thinh.trips    = thinhT.length;
+    this.data.incomeOverview.thinh.cash     = sum(thinhT, 'cash');
+    this.data.incomeOverview.thinh.transfer = sum(thinhT, 'transfer');
+    this.data.incomeOverview.bu.total       = sum(buT, 'amount');
+    this.data.incomeOverview.bu.trips       = buT.length;
+    this.data.incomeOverview.bu.cash        = sum(buT, 'cash');
+    this.data.incomeOverview.bu.transfer    = sum(buT, 'transfer');
+    // Không saveState — chỉ hiển thị
+    this.renderReports();
     this.showToast(`Báo cáo: ${btn.textContent}`);
   }
 
