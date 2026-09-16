@@ -511,16 +511,29 @@ class GrabApp {
       plateEl.textContent = this.data.vehicle.plate || '59E2-059.57';
     }
 
-    // Doanh thu tổng & số chuyến
+    // Doanh thu & số chuyến — lọc theo driver đang giữ máy
     const totalAmountEl = document.getElementById('overviewTotalAmount');
     const totalTripsEl = document.getElementById('overviewTotalTrips');
     const cashEl = document.getElementById('overviewCash');
     const transferEl = document.getElementById('overviewTransfer');
+    const cardTitleEl = document.getElementById('overviewCardTitle');
 
-    if (totalAmountEl) totalAmountEl.textContent = this.formatMoney(this.data.incomeOverview.total);
-    if (totalTripsEl) totalTripsEl.textContent = this.data.incomeOverview.totalTrips;
-    if (cashEl) cashEl.textContent = this.formatMoney(this.data.incomeOverview.cash);
-    if (transferEl) transferEl.textContent = this.formatMoney(this.data.incomeOverview.transfer);
+    const dc = this.data.dailyClosing || {};
+    const d = (curDriver === 'thinh' ? dc.thinh : dc.bu) || {};
+    const driverName = curDriver === 'thinh' ? 'Thịnh' : 'Bu';
+    const hasDriverData = d.trips != null;
+
+    // Nếu có per-driver data, dùng; fallback về incomeOverview (tổng 2 người)
+    const dispTotal    = hasDriverData ? (d.revenue  || 0) : this.data.incomeOverview.total;
+    const dispTrips    = hasDriverData ? (d.trips    || 0) : this.data.incomeOverview.totalTrips;
+    const dispCash     = hasDriverData ? (d.cash     || 0) : this.data.incomeOverview.cash;
+    const dispTransfer = hasDriverData ? (d.transfer || 0) : this.data.incomeOverview.transfer;
+
+    if (cardTitleEl) cardTitleEl.textContent = `Thu nhập ${driverName} hôm nay`;
+    if (totalAmountEl) totalAmountEl.textContent = this.formatMoney(dispTotal);
+    if (totalTripsEl) totalTripsEl.textContent = dispTrips;
+    if (cashEl) cashEl.textContent = this.formatMoney(dispCash);
+    if (transferEl) transferEl.textContent = this.formatMoney(dispTransfer);
 
     // So sánh với hôm qua (chỉ hiện khi có chênh lệch thực tế)
     const trendEl = document.getElementById('overviewTrendIndicator');
@@ -1872,20 +1885,39 @@ class GrabApp {
   // 9. RENDER MÀN HÌNH HÔM NAY
   // ===================================================
   renderToday() {
-    const s = this.data.todaySummary;
     const setSafe = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     };
 
-    setSafe('todaySumTrips', s.trips);
-    setSafe('todaySumRev', this.formatMoney(s.totalRevenue));
-    setSafe('todaySumCash', this.formatMoney(s.cash));
-    setSafe('todaySumTransfer', this.formatMoney(s.transfer));
-    setSafe('todaySumFuel', this.formatMoney(s.fuelExpense));
-    setSafe('todaySumOther', this.formatMoney(s.otherExpense));
-    setSafe('todaySumNet', this.formatMoney(s.netIncome));
+    const curDriver = this.data.vehicle.currentDriverId || 'thinh';
+    const dc = this.data.dailyClosing || {};
+    // Nếu có dữ liệu per-driver (dailyClosing), dùng của driver đang chọn
+    // Fallback về todaySummary (tổng 2 người) nếu chưa có
+    const d = (curDriver === 'thinh' ? dc.thinh : dc.bu) || {};
+    const s = this.data.todaySummary || {};
+
+    const hasDriverData = d.trips != null;
+    const trips     = hasDriverData ? (d.trips     || 0) : (s.trips || 0);
+    const rev       = hasDriverData ? (d.revenue   || 0) : (s.totalRevenue || 0);
+    const cash      = hasDriverData ? (d.cash      || 0) : (s.cash || 0);
+    const transfer  = hasDriverData ? (d.transfer  || 0) : (s.transfer || 0);
+    const fuel      = hasDriverData ? (d.fuelExpense   || 0) : (s.fuelExpense || 0);
+    const other     = hasDriverData ? (d.otherExpense  || 0) : (s.otherExpense || 0);
+    const net       = hasDriverData ? (d.netIncome || 0) : (s.netIncome || 0);
+
+    setSafe('todaySumTrips', trips);
+    setSafe('todaySumRev', this.formatMoney(rev));
+    setSafe('todaySumCash', this.formatMoney(cash));
+    setSafe('todaySumTransfer', this.formatMoney(transfer));
+    setSafe('todaySumFuel', this.formatMoney(fuel));
+    setSafe('todaySumOther', this.formatMoney(other));
+    setSafe('todaySumNet', this.formatMoney(net));
     setSafe('todayWalletRemaining', this.formatMoney(s.walletRemaining || 0));
+
+    // Đổi label theo driver
+    const driverName = curDriver === 'thinh' ? 'Thịnh' : 'Bu';
+    setSafe('todaySumNetLabel', `Thu nhập thực nhận ${driverName}`);
   }
 
   // ===================================================
