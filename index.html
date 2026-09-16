@@ -560,11 +560,7 @@
 
           <div>
             <div class="trip-list-header">
-              <span class="section-title-sm" style="margin-bottom: 0;">Chi tiết chuyến</span>
-              <button class="filter-btn" onclick="app.toggleTripFilter()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/></svg>
-                Lọc
-              </button>
+              <span class="section-title-sm" style="margin-bottom: 0;">📅 Tổng kết theo ngày</span>
             </div>
 
             <div class="trips-container" id="tripsListContainer" style="margin-top: 8px;">
@@ -572,8 +568,8 @@
             </div>
           </div>
 
-          <button class="btn-primary" onclick="app.openModal('tripModal')">
-            <span>+</span> Thêm chuyến
+          <button class="btn-primary" onclick="app.openDailyRevenueModal()">
+            <span>+</span> Ghi nhận doanh thu ngày
           </button>
         </article>
 
@@ -1256,6 +1252,49 @@
             <button type="submit" class="btn-primary">
               ✓ Lưu Chuyến Đi
             </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- ==============================================
+           MODAL: GHI NHẬN DOANH THU NGÀY
+           ============================================== -->
+      <div class="modal-overlay" id="dailyRevenueModal" onclick="app.closeModal('dailyRevenueModal', event)">
+        <div class="bottom-sheet" onclick="event.stopPropagation()">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">💰 Ghi nhận doanh thu ngày</div>
+
+          <form id="dailyRevenueForm" onsubmit="app.handleSaveDailyRevenue(event)">
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label class="form-label">Người chạy</label>
+              <select class="form-select" id="drDriverSelect">
+                <option value="thinh">Thịnh</option>
+                <option value="bu">Bu</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label class="form-label">Ngày</label>
+              <input type="date" class="form-input" id="drDateInput" required>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label class="form-label">💵 Tiền mặt (VNĐ)</label>
+                <input type="number" class="form-input" id="drCashInput" placeholder="0" step="1000" min="0">
+              </div>
+              <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label class="form-label">💳 Chuyển khoản (VNĐ)</label>
+                <input type="number" class="form-input" id="drTransferInput" placeholder="0" step="1000" min="0">
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 14px;">
+              <label class="form-label">Số chuyến (tùy chọn)</label>
+              <input type="number" class="form-input" id="drTripsInput" placeholder="VD: 12" min="0">
+            </div>
+
+            <button type="submit" class="btn-primary">✓ Lưu doanh thu ngày</button>
           </form>
         </div>
       </div>

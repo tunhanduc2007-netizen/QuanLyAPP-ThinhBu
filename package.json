@@ -1,0 +1,7 @@
+{
+  "name": "quan-ly-app-grab",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "start http://localhost:3000 && npx serve ."
+  }
+}

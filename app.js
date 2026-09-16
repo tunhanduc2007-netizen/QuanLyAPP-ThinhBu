@@ -196,6 +196,18 @@ class GrabApp {
       }
     });
 
+    // Cộng thêm doanh thu ghi nhận theo ngày (dailyRevenues)
+    (this.data.dailyRevenues || []).forEach(dr => {
+      const c = parseInt(dr.cash) || 0;
+      const tr = parseInt(dr.transfer) || 0;
+      const t = parseInt(dr.trips) || 0;
+      if (dr.driverId === 'thinh') {
+        thinhRev += c + tr; thinhCash += c; thinhTransfer += tr; thinhTrips += t;
+      } else {
+        buRev += c + tr; buCash += c; buTransfer += tr; buTrips += t;
+      }
+    });
+
     // Cập nhật incomeOverview
     this.data.incomeOverview.total = thinhRev + buRev;
     this.data.incomeOverview.totalTrips = thinhTrips + buTrips;
@@ -445,6 +457,7 @@ class GrabApp {
     this.saveState();
     this.renderOverview();
     this.renderToday();
+    this.renderIncome();
     if (window.grabSync) window.grabSync.broadcast('SWITCH_DRIVER', { driverId });
   }
 
@@ -797,7 +810,7 @@ class GrabApp {
   }
 
   // ===================================================
-  // 3. RENDER THU NHẬP & CHUYẾN ĐI (PHẦN 5 & 6)
+  // 3. RENDER THU NHẬP & TỔNG KẾT THEO NGÀY
   // ===================================================
   renderIncome() {
     const incTotal = document.getElementById('incomeScreenTotal');
@@ -805,58 +818,93 @@ class GrabApp {
     const incTransfer = document.getElementById('incomeScreenTransfer');
     const incTrips = document.getElementById('incomeScreenTrips');
 
-    const curDriver = this.data.vehicle.currentDriverId || 'thinh';
-    const dc = this.data.dailyClosing || {};
-    const driverData = (curDriver === 'thinh' ? dc.thinh : dc.bu) || {};
-    const hasDD = driverData.trips != null;
+    const curDriver = (this.data.vehicle && this.data.vehicle.currentDriverId) || 'thinh';
+    const ov = this.data.incomeOverview || {};
+    const driverOv = ov[curDriver] || {};
+    if (incTotal)    incTotal.textContent    = this.formatMoney(driverOv.total || 0);
+    if (incCash)     incCash.textContent     = this.formatMoney(driverOv.cash || 0);
+    if (incTransfer) incTransfer.textContent = this.formatMoney(driverOv.transfer || 0);
+    if (incTrips)    incTrips.textContent    = driverOv.trips || 0;
 
-    const dispTotal    = hasDD ? (driverData.revenue  || 0) : (this.data.incomeOverview.total || 0);
-    const dispCash     = hasDD ? (driverData.cash     || 0) : (this.data.incomeOverview.cash || 0);
-    const dispTransfer = hasDD ? (driverData.transfer || 0) : (this.data.incomeOverview.transfer || 0);
-    const dispTrips    = hasDD ? (driverData.trips    || 0) : (this.data.trips || []).length;
+    const container = document.getElementById('tripsListContainer');
+    if (!container) return;
 
-    if (incTotal)    incTotal.textContent    = this.formatMoney(dispTotal);
-    if (incCash)     incCash.textContent     = this.formatMoney(dispCash);
-    if (incTransfer) incTransfer.textContent = this.formatMoney(dispTransfer);
-    if (incTrips)    incTrips.textContent    = dispTrips;
+    // Gom nhom theo ngay, chi lay cua curDriver
+    const dayMap = {};
 
-    const tripsContainer = document.getElementById('tripsListContainer');
-    if (!tripsContainer) return;
+    (this.data.dailyRevenues || []).filter(dr => dr.driverId === curDriver).forEach(dr => {
+      const key = dr.date;
+      if (!dayMap[key]) dayMap[key] = { total: 0, cash: 0, transfer: 0, trips: 0 };
+      dayMap[key].cash += dr.cash || 0;
+      dayMap[key].transfer += dr.transfer || 0;
+      dayMap[key].total += (dr.cash || 0) + (dr.transfer || 0);
+      dayMap[key].trips += dr.trips || 0;
+    });
 
-    if (!this.data.trips || this.data.trips.length === 0) {
-      tripsContainer.innerHTML = `
-        <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">
-          Chưa có chuyến đi nào trong ngày.<br>Bấm "Thêm chuyến" bên dưới để ghi nhận.
-        </div>
-      `;
+    (this.data.trips || []).filter(t => t.driverId === curDriver).forEach(t => {
+      const key = (t.date || '').slice(0, 10);
+      if (!key) return;
+      if (!dayMap[key]) dayMap[key] = { total: 0, cash: 0, transfer: 0, trips: 0 };
+      const amt = parseInt(t.amount) || 0;
+      dayMap[key].total += amt;
+      dayMap[key].trips += 1;
+      if (t.type === 'cash') dayMap[key].cash += amt; else dayMap[key].transfer += amt;
+    });
+
+    const days = Object.keys(dayMap).sort((a, b) => b.localeCompare(a));
+    const driverName = curDriver === 'thinh' ? 'Thinh' : 'Bu';
+
+    if (days.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">Chua co du lieu cho ' + driverName + '.<br>Bam "Ghi nhan doanh thu ngay" de them.</div>';
       return;
     }
 
-    let html = '';
-    this.data.trips.forEach(trip => {
-      const isCash = trip.type === 'cash';
-      const badgeClass = isCash ? 'trip-badge-cash' : 'trip-badge-transfer';
-      const badgeText = isCash ? 'Tiền mặt' : 'Chuyển khoản';
-      const driverName = trip.driverId === 'thinh' ? 'Thịnh' : 'Bu';
-      const driverBg = trip.driverId === 'thinh' ? '#E8F5E9' : '#E7F5FF';
-      const driverColor = trip.driverId === 'thinh' ? 'var(--driver-thinh)' : 'var(--driver-bu)';
+    const fmt = function(d) { var p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
 
-      html += `
-        <div class="trip-card-item" onclick="app.openTripActions('${trip.id}')" title="Bấm để xem/sửa/xóa chuyến">
-          <div class="trip-item-left">
-            <div class="trip-item-top">
-              <span class="trip-time">${trip.time}</span>
-              <span class="trip-amount">${this.formatMoney(trip.amount)}</span>
-              <span class="${badgeClass}">${badgeText}</span>
-              <span class="trip-driver-tag" style="background: ${driverBg}; color: ${driverColor};">${driverName}</span>
-            </div>
-            <span class="trip-desc">${trip.note}</span>
-          </div>
-          <span style="color: #A0AEC0; font-size: 16px;">✎</span>
-        </div>
-      `;
-    });
-    tripsContainer.innerHTML = html;
+    container.innerHTML = days.map(function(day) {
+      var d = dayMap[day];
+      var self = app;
+      return '<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">' +
+        '<div>' +
+          '<div style="font-weight:700;font-size:13px;color:var(--text-main);margin-bottom:3px;">' + fmt(day) + '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);">' +
+            self.formatMoney(d.cash) + ' TM  /  ' + self.formatMoney(d.transfer) + ' CK' +
+            (d.trips ? '  /  ' + d.trips + ' chuyen' : '') +
+          '</div>' +
+        '</div>' +
+        '<div style="font-weight:800;font-size:15px;color:var(--primary-green);">' + self.formatMoney(d.total) + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  handleSaveDailyRevenue(e) {
+    e.preventDefault();
+    const driverId = document.getElementById('drDriverSelect').value;
+    const date = document.getElementById('drDateInput').value;
+    const cash = parseInt(document.getElementById('drCashInput').value) || 0;
+    const transfer = parseInt(document.getElementById('drTransferInput').value) || 0;
+    const trips = parseInt(document.getElementById('drTripsInput').value) || 0;
+
+    if (!date || (cash + transfer) <= 0) {
+      this.showToast('Vui l\u00f2ng ch\u1ecdn ng\u00e0y v\u00e0 nh\u1eadp s\u1ed1 ti\u1ec1n!');
+      return;
+    }
+
+    if (!this.data.dailyRevenues) this.data.dailyRevenues = [];
+    this.data.dailyRevenues.unshift({ id: 'dr-' + Date.now(), date, driverId, cash, transfer, trips });
+
+    this.saveState();
+    this.recalculateBalances();
+    this.renderAll();
+    this.closeModal('dailyRevenueModal');
+    e.target.reset();
+    this.showToast('\u2713 \u0110\u00e3 ghi nh\u1eadn ' + this.formatMoney(cash + transfer) + ' ng\u00e0y ' + date.split('-').reverse().join('/') + '!');
+  }
+
+  openDailyRevenueModal() {
+    const dateInput = document.getElementById('drDateInput');
+    if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+    this.openModal('dailyRevenueModal');
   }
 
   openTripActions(tripId) {
