@@ -861,9 +861,9 @@ class GrabApp {
 
     const fmt = function(d) { var p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
 
+    const self = this;
     container.innerHTML = days.map(function(day) {
       var d = dayMap[day];
-      var self = app;
       return '<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">' +
         '<div>' +
           '<div style="font-weight:700;font-size:13px;color:var(--text-main);margin-bottom:3px;">' + fmt(day) + '</div>' +
