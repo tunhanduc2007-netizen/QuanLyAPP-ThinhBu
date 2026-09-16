@@ -1417,6 +1417,9 @@ class GrabApp {
       if (el) el.textContent = val;
     };
 
+    // Luôn hiển thị ngày hôm nay theo thời gian thực
+    setSafe('closingDateLabel', this.getTodayInfo().displayStr);
+
     setSafe('closeThinhTrips', t.trips);
     setSafe('closeThinhRev', this.formatMoney(t.revenue));
     setSafe('closeThinhCash', this.formatMoney(t.cash));
