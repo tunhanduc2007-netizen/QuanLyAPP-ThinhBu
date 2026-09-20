@@ -1,1455 +1,1427 @@
 /**
- * QUẢN LÝ CHẠY GRAB - THỊNH & BU (FULL CHỨC NĂNG)
- * 1 Xe Air Blade 125 (59E2-059.57) dùng chung cho 2 tài xế Thịnh & Bu
- * Đầy đủ CRUD: Chuyến đi, Lịch chạy & kiểm tra xung đột xe, Ghi chú, Ảnh chốt sổ, Chốt ngày, Lịch sử đối soát.
+ * FINANCE APP - QUẢN LÝ TÀI CHÍNH CÁ NHÂN & NHÓM
+ * TRẠNG THÁI SẠCH (CLEAN STATE) — KHỞI ĐẦU CHÍNH CHỦ
+ * Không dữ liệu ảo, tính toán động 100% khi người dùng thêm giao dịch.
  */
 
-class GrabApp {
-  getTodayInfo() {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    const dayName = dayNames[dayOfWeek];
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
-    return {
-      date: now,
-      day: now.getDate(),
-      month: now.getMonth() + 1,
-      year: yyyy,
-      dayName,
-      dateStr: `${dd}/${mm}/${yyyy}`,
-      displayStr: `${dayName}, ${dd}/${mm}/${yyyy}`,
-      isoDate: `${yyyy}-${mm}-${dd}`
-    };
-  }
-
+class FinanceApp {
   constructor() {
-    this.storageKey = 'grab_management_state_v2';
-    this.currentScreen = 'screen-overview';
+    window.app = this;
+    this.storageKey = typeof STORAGE_FINANCE_KEY !== 'undefined' ? STORAGE_FINANCE_KEY : 'finance_app_clean_user_v2';
+    this.isSubmittingTx = false;
+    this.historyStack = [];
+
+    // Kiểm tra trạng thái đăng nhập
+    this.isLoggedIn = !!localStorage.getItem('finance_user_logged_in');
+    this.currentScreen = this.isLoggedIn ? 'screen-dashboard' : 'screen-login';
+
+    this.isBalanceHidden = false;
+    this.currentAddType = 'income'; // 'income' | 'expense'
+    this.selectedCategory = 'Chọn danh mục';
+    this.selectedCatIcon = 'folder';
     
-    // Tự động nhận diện chính xác ngày hôm nay theo thời gian thực
-    const today = this.getTodayInfo();
-    this.currentCalYear = today.year;
-    this.currentCalMonth = today.month;
-    this.selectedDay = today.day;
-    this.activeSlot = null;
-    this.activeLightboxImgId = null;
-    
+    // OCR Instance
+    if (typeof GrabOCR !== 'undefined') {
+      this.ocr = new GrabOCR();
+    }
+
+    // Load Data sạch
     this.initData();
-    this.bindEvents();
     this.recalculateBalances();
+    this.saveData();
+
+    // Chart instances
+    this.dashChart = null;
+    this.analyticsBar = null;
+    this.analyticsPie = null;
+    this.incomePie = null;
+
+    // Start Live Clock in iOS Status Bar
+    this.initClock();
+
+    // Render Initial UI
+    this.applyTheme(this.data.user.darkMode);
     this.renderAll();
 
-    if (window.grabSync) {
-      window.grabSync.initCloudSync();
+    // Thiết lập hiển thị màn hình khởi động
+    document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+    const startScreenEl = document.getElementById(this.currentScreen);
+    if (startScreenEl) startScreenEl.classList.add('active');
+
+    const bottomBar = document.querySelector('.bottom-nav-bar');
+    if (bottomBar) {
+      bottomBar.style.display = (this.currentScreen === 'screen-login') ? 'none' : 'flex';
     }
+
+    this.initAuthListener();
+    this.setupIcons();
   }
 
-  // Khởi tạo hoặc lấy dữ liệu từ localStorage
+  // Khởi tạo hoặc load từ LocalStorage theo từng User riêng biệt (Multi-User Isolation)
   initData() {
+    let uid = 'guest';
+    const savedProfile = localStorage.getItem('finance_user_profile');
+    if (savedProfile) {
+      try {
+        const u = JSON.parse(savedProfile);
+        if (u.uid) uid = u.uid;
+      } catch (e) {}
+    }
+
+    this.storageKey = 'finance_data_' + uid;
     const saved = localStorage.getItem(this.storageKey);
+
     if (saved) {
       try {
         this.data = JSON.parse(saved);
-        if (!this.data.closedHistory) this.data.closedHistory = [];
       } catch (e) {
-        console.error('Lỗi nạp dữ liệu, dùng INITIAL_DATA:', e);
-        this.data = JSON.parse(JSON.stringify(INITIAL_DATA));
+        console.error("Lỗi đọc LocalStorage, nạp DEFAULT_FINANCE_DATA", e);
+        this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
       }
     } else {
-      this.data = JSON.parse(JSON.stringify(INITIAL_DATA));
+      this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
+      this.saveData();
     }
-    if (this.data && this.data.vehicle) {
-      this.data.vehicle.plate = '59E2-059.57';
-    }
-    if (this.data && !this.data.vehicleMaintenance) {
-      this.data.vehicleMaintenance = JSON.parse(JSON.stringify((typeof INITIAL_DATA !== 'undefined' && INITIAL_DATA.vehicleMaintenance) || {
-        currentOdo: 12850,
-        oilChangeInterval: 1500,
-        lastOilChangeOdo: 11500,
-        gearOilInterval: 5000,
-        lastGearOilOdo: 10000,
-        airFilterInterval: 10000,
-        lastAirFilterOdo: 5000,
-        logs: []
-      }));
-    }
-    if (this.data && !this.data.settlement) {
-      this.data.settlement = { lastSettledDate: null, history: [] };
+
+    // Phục hồi hồ sơ đăng nhập đã lưu
+    if (savedProfile) {
+      try {
+        const u = JSON.parse(savedProfile);
+        if (u.name) this.data.user.name = u.name;
+        if (u.email) this.data.user.email = u.email;
+        if (u.avatar) this.data.user.avatar = u.avatar;
+        if (u.name) this.data.user.nickname = `${u.name} 👋`;
+        if (u.uid) this.data.user.uid = u.uid;
+      } catch (e) {}
     }
   }
 
-  saveState() {
-    localStorage.setItem(this.storageKey, JSON.stringify(this.data));
-    if (window.grabSync) {
+  saveData() {
+    if (this.storageKey) {
+      localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+    }
+    if (window.grabSync && typeof window.grabSync.pushToCloud === 'function') {
       window.grabSync.pushToCloud(this.data);
     }
   }
 
-  // ===================================================
-  // RESET SẠCH & NẠP DEMO REFERENCE
-  // ===================================================
-  confirmResetClean() {
-    if (typeof CLEAN_DATA === 'undefined') {
-      alert('Không tìm thấy dữ liệu mẫu CLEAN_DATA');
-      return;
+  resetAllDataClean() {
+    if (confirm('Bạn có chắc chắn muốn xóa toàn bộ dữ liệu tài khoản này và bắt đầu lại từ 0đ?')) {
+      if (this.storageKey) {
+        localStorage.removeItem(this.storageKey);
+      }
+      this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
+      this.saveData();
+      this.renderAll();
+      this.showToast('Đã xóa dữ liệu tài khoản này về trạng thái sạch 0đ!');
+      this.navTo('screen-dashboard');
     }
-    this.data = JSON.parse(JSON.stringify(CLEAN_DATA));
-    const today = this.getTodayInfo();
-    this.selectedDay = today.day;
-    this.currentCalMonth = today.month;
-    this.currentCalYear = today.year;
-    this.data.currentDate = today.isoDate;
-    this.data.displayDate = today.displayStr;
-    
-    // Xóa các input nếu có
-    const walletInput = document.getElementById('closeInputWallet');
-    const fuelInput = document.getElementById('closeInputFuel');
-    const otherInput = document.getElementById('closeInputOther');
-    if (walletInput) walletInput.value = '';
-    if (fuelInput) fuelInput.value = '';
-    if (otherInput) otherInput.value = '';
-
-    const finTotalRev = document.getElementById('finTotalRev');
-    const finCash = document.getElementById('finCash');
-    const finTransfer = document.getElementById('finTransfer');
-    const finWallet = document.getElementById('finWallet');
-    const finFuel = document.getElementById('finFuel');
-    const finOther = document.getElementById('finOther');
-    if (finTotalRev) finTotalRev.value = '0đ';
-    if (finCash) finCash.value = '0đ';
-    if (finTransfer) finTransfer.value = '0đ';
-    if (finWallet) finWallet.value = '0đ';
-    if (finFuel) finFuel.value = '0đ';
-    if (finOther) finOther.value = '0đ';
-
-    this.saveState();
-    this.recalculateBalances();
-    this.renderAll();
-    this.showToast('✓ Đã RESET TOÀN BỘ dữ liệu về trạng thái sạch (0 chuyến, 0đ)!');
   }
 
-  loadDemoReferenceData() {
-    if (typeof DEMO_DATA === 'undefined') {
-      alert('Không tìm thấy dữ liệu mẫu DEMO_DATA');
-      return;
+  setupIcons() {
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
     }
-    this.data = JSON.parse(JSON.stringify(DEMO_DATA));
-    this.selectedDay = 12;
-    this.currentCalMonth = 9;
-    this.currentCalYear = 2026;
-    this.saveState();
-    this.recalculateBalances();
-    this.renderAll();
-    this.showToast('✓ Đã nạp dữ liệu mẫu reference UI!');
   }
 
-  formatMoney(num) {
-    if (typeof num !== 'number') num = parseInt(num) || 0;
-    return num.toLocaleString('vi-VN') + 'đ';
+  initClock() {
+    const updateTime = () => {
+      const now = new Date();
+      const hrs = String(now.getHours()).padStart(2, '0');
+      const mins = String(now.getMinutes()).padStart(2, '0');
+      const clockEl = document.getElementById('statusClock');
+      if (clockEl) clockEl.textContent = `${hrs}:${mins}`;
+    };
+    updateTime();
+    setInterval(updateTime, 10000);
+  }
+
+  // Format currency: 28500000 -> 28.500.000đ
+  formatVND(num) {
+    if (isNaN(num)) return '0đ';
+    return Number(num).toLocaleString('vi-VN') + 'đ';
+  }
+
+  parseVND(str) {
+    if (!str) return 0;
+    return parseInt(str.toString().replace(/[^\d]/g, ''), 10) || 0;
+  }
+
+  getDefaultAvatarUrl(name) {
+    const displayName = name || this.data?.user?.name || 'User';
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=10B981&color=ffffff&bold=true&size=150`;
+  }
+
+  getAvatarUrl() {
+    const av = this.data?.user?.avatar;
+    if (!av || av.trim() === '' || av === 'undefined' || av === 'null') {
+      return this.getDefaultAvatarUrl();
+    }
+    return av;
+  }
+
+  escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // Bù trừ múi giờ địa phương (GMT+7) tránh lỗi lùi ngày khi dùng UTC toISOString() lúc nửa đêm
+  getLocalDateString(d = new Date()) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // CORE FINANCIAL ENGINE: Chuẩn hóa và đồng bộ số dư toàn hệ thống
+  recalculateBalances() {
+    if (!this.data) return;
+
+    // 1. Tinh gọn chỉ giữ đúng 2 nguồn tiền: "Ngân hàng" và "Tiền mặt"
+    if (!this.data.wallets) {
+      this.data.wallets = { totalBalance: 0, accounts: [], recentTransactions: [] };
+    }
+
+    let bankBal = 0;
+    let cashBal = 0;
+    (this.data.wallets.accounts || []).forEach(acc => {
+      if (acc.name === 'Tiền mặt') {
+        cashBal += (Number(acc.balance) || 0);
+      } else {
+        bankBal += (Number(acc.balance) || 0);
+      }
+    });
+
+    this.data.wallets.accounts = [
+      { id: "acc-bank", name: "Ngân hàng", icon: "landmark", balance: bankBal, color: "#10B981", bg: "#D1FAE5" },
+      { id: "acc-cash", name: "Tiền mặt", icon: "banknote", balance: cashBal, color: "#06B6D4", bg: "#CFFAFE" }
+    ];
+
+    const totalAccountsBal = bankBal + cashBal;
+    this.data.wallets.totalBalance = totalAccountsBal;
+
+    if (!this.data.overview) {
+      this.data.overview = { currentBalance: 0, monthlyIncome: 0, monthlyExpense: 0, monthlySavings: 0 };
+    }
+    // Số dư Dashboard và Wallets sử dụng chung 1 nguồn dữ liệu chính xác
+    this.data.overview.currentBalance = totalAccountsBal;
+
+    // 2. Tính toán thu nhập, chi tiêu, tiết kiệm từ transactions
+    const txs = this.data.transactions || [];
+    let calcIncome = 0;
+    let calcExpense = 0;
+
+    const incCatMap = {};
+    const expCatMap = {};
+    const calDays = {};
+
+    txs.forEach(tx => {
+      const amt = Number(tx.amount) || 0;
+      const isoDate = tx.isoDate || (tx.date ? tx.date.split('/').reverse().join('-') : '2026-09-20');
+
+      if (!calDays[isoDate]) {
+        calDays[isoDate] = { income: 0, expense: 0, net: 0, transactions: [] };
+      }
+
+      if (tx.type === 'income') {
+        calcIncome += amt;
+        incCatMap[tx.category] = (incCatMap[tx.category] || 0) + amt;
+        calDays[isoDate].income += amt;
+        calDays[isoDate].net += amt;
+      } else if (tx.type === 'expense') {
+        calcExpense += amt;
+        expCatMap[tx.category] = (expCatMap[tx.category] || 0) + amt;
+        calDays[isoDate].expense += amt;
+        calDays[isoDate].net -= amt;
+      }
+      // Lưu ý: type === 'transfer' không làm tăng giảm thu/chi tổng quan
+
+      calDays[isoDate].transactions.push({
+        id: tx.id,
+        title: tx.title,
+        category: tx.category,
+        time: (tx.time || '12:00') + ' • ' + (tx.type === 'income' ? 'Thu nhập' : (tx.type === 'transfer' ? 'Chuyển khoản' : 'Chi tiêu')),
+        amount: amt,
+        type: tx.type,
+        icon: tx.icon || 'credit-card',
+        color: tx.type === 'income' ? '#10B981' : (tx.type === 'transfer' ? '#3B82F6' : '#EF4444')
+      });
+    });
+
+    this.data.overview.monthlyIncome = calcIncome;
+    this.data.overview.monthlyExpense = calcExpense;
+    this.data.overview.monthlySavings = calcIncome - calcExpense;
+
+    if (!this.data.calendar) {
+      this.data.calendar = { selectedMonth: 9, selectedYear: 2026, selectedDate: "2026-09-20", days: {} };
+    }
+    this.data.calendar.days = calDays;
+
+    // 3. Cập nhật tiến độ ngân sách (Budgets)
+    if (this.data.budgets && Array.isArray(this.data.budgets)) {
+      this.data.budgets.forEach(b => {
+        const used = expCatMap[b.title] || 0;
+        b.used = used;
+        b.percent = b.target > 0 ? Math.round((used / b.target) * 100) : 0;
+        b.isWarning = b.percent >= 90;
+      });
+    }
+
+    // 4. Cập nhật tỷ lệ nguồn thu nhập (Income Sources)
+    if (this.data.incomeSources && this.data.incomeSources.sources) {
+      this.data.incomeSources.totalMonth = calcIncome;
+      this.data.incomeSources.sources.forEach(s => {
+        const amt = incCatMap[s.title] || 0;
+        s.amount = amt;
+        s.percent = calcIncome > 0 ? Math.round((amt / calcIncome) * 100) : 0;
+      });
+    }
+
+    // 5. Cập nhật Leaderboard Ranking theo metric đã chọn
+    if (this.data.ranking) {
+      const metric = this.data.ranking.metric || 'total_income';
+      const rankAmount = (metric === 'net_income') ? this.data.overview.monthlySavings : this.data.overview.monthlyIncome;
+      if (this.data.ranking.leaderboard && this.data.ranking.leaderboard[0]) {
+        this.data.ranking.leaderboard[0].amount = Math.max(0, rankAmount);
+      }
+    }
+
+    // 6. Cập nhật Group featured & detail
+    if (this.data.groups) {
+      if (this.data.groups.featured) {
+        this.data.groups.featured.totalIncome = calcIncome;
+        this.data.groups.featured.totalExpense = calcExpense;
+        this.data.groups.featured.savings = calcIncome - calcExpense;
+      }
+      if (this.data.groups.detail) {
+        this.data.groups.detail.totalIncome = calcIncome;
+        this.data.groups.detail.totalExpense = calcExpense;
+        this.data.groups.detail.savings = calcIncome - calcExpense;
+        if (this.data.groups.detail.membersContribution && this.data.groups.detail.membersContribution[0]) {
+          this.data.groups.detail.membersContribution[0].amount = calcIncome;
+        }
+      }
+    }
   }
 
   showToast(message) {
-    const toast = document.getElementById('toastNotice');
+    const toast = document.getElementById('toastMsg');
     const toastText = document.getElementById('toastText');
     if (!toast || !toastText) return;
     toastText.textContent = message;
     toast.classList.add('show');
-    clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => {
+    setTimeout(() => {
       toast.classList.remove('show');
-    }, 2500);
+    }, 2400);
   }
 
   // ===================================================
-  // TÍNH TOÁN TÀI CHÍNH TỰ CHỦ & ĐỐI SOÁT BÙ TRỪ
+  // NAVIGATION & ROUTING
   // ===================================================
-  recalculateBalances() {
-    if (!this.data.incomeOverview) {
-      this.data.incomeOverview = { total: 0, totalTrips: 0, cash: 0, transfer: 0, thinh: {}, bu: {} };
-    }
-    if (!this.data.dailyClosing) {
-      this.data.dailyClosing = { thinh: {}, bu: {}, isClosed: false };
-    }
-    if (!this.data.dailyClosing.thinh) this.data.dailyClosing.thinh = {};
-    if (!this.data.dailyClosing.bu) this.data.dailyClosing.bu = {};
-    if (!this.data.reports) this.data.reports = { overview: {}, thinh: {}, bu: {}, chartDays: [] };
-    if (!this.data.todaySummary) this.data.todaySummary = {};
+  navTo(screenId, saveHistory = true) {
+    if (this.currentScreen === screenId) return;
 
-    let thinhRev = 0, thinhCash = 0, thinhTransfer = 0, thinhTrips = 0;
-    let buRev = 0, buCash = 0, buTransfer = 0, buTrips = 0;
-
-    (this.data.trips || []).forEach(t => {
-      const amt = parseInt(t.amount) || 0;
-      if (t.driverId === 'thinh') {
-        thinhRev += amt;
-        thinhTrips++;
-        if (t.type === 'cash') thinhCash += amt;
-        else thinhTransfer += amt;
-      } else {
-        buRev += amt;
-        buTrips++;
-        if (t.type === 'cash') buCash += amt;
-        else buTransfer += amt;
-      }
-    });
-
-    // Cộng thêm doanh thu ghi nhận theo ngày (dailyRevenues)
-    (this.data.dailyRevenues || []).forEach(dr => {
-      const c = parseInt(dr.cash) || 0;
-      const tr = parseInt(dr.transfer) || 0;
-      const t = parseInt(dr.trips) || 0;
-      if (dr.driverId === 'thinh') {
-        thinhRev += c + tr; thinhCash += c; thinhTransfer += tr; thinhTrips += t;
-      } else {
-        buRev += c + tr; buCash += c; buTransfer += tr; buTrips += t;
-      }
-    });
-
-    // Cập nhật incomeOverview
-    this.data.incomeOverview.total = thinhRev + buRev;
-    this.data.incomeOverview.totalTrips = thinhTrips + buTrips;
-    this.data.incomeOverview.cash = thinhCash + buCash;
-    this.data.incomeOverview.transfer = thinhTransfer + buTransfer;
-
-    this.data.incomeOverview.thinh = {
-      total: thinhRev,
-      trips: thinhTrips,
-      cash: thinhCash,
-      transfer: thinhTransfer
-    };
-
-    this.data.incomeOverview.bu = {
-      total: buRev,
-      trips: buTrips,
-      cash: buCash,
-      transfer: buTransfer
-    };
-
-    // Chi phí và tip
-    const thinhTip = this.data.dailyClosing.thinh.tip || 0;
-    const thinhFuel = this.data.dailyClosing.thinh.fuelExpense || 0;
-    const thinhOther = this.data.dailyClosing.thinh.otherExpense || 0;
-    const thinhNet = thinhRev + thinhTip - thinhFuel - thinhOther;
-
-    const buTip = this.data.dailyClosing.bu.tip || 0;
-    const buFuel = this.data.dailyClosing.bu.fuelExpense || 0;
-    const buOther = this.data.dailyClosing.bu.otherExpense || 0;
-    const buNet = buRev + buTip - buFuel - buOther;
-
-    this.data.dailyClosing.thinh.trips = thinhTrips;
-    this.data.dailyClosing.thinh.revenue = thinhRev;
-    this.data.dailyClosing.thinh.cash = thinhCash;
-    this.data.dailyClosing.thinh.transfer = thinhTransfer;
-    this.data.dailyClosing.thinh.netIncome = thinhNet;
-
-    this.data.dailyClosing.bu.trips = buTrips;
-    this.data.dailyClosing.bu.revenue = buRev;
-    this.data.dailyClosing.bu.cash = buCash;
-    this.data.dailyClosing.bu.transfer = buTransfer;
-    this.data.dailyClosing.bu.netIncome = buNet;
-
-    // Cập nhật báo cáo & hôm nay
-    this.data.reports.overview.revenue = thinhRev + buRev;
-    this.data.reports.overview.trips = thinhTrips + buTrips;
-    this.data.reports.overview.cash = thinhCash + buCash;
-    this.data.reports.overview.transfer = thinhTransfer + buTransfer;
-
-    this.data.todaySummary.trips = thinhTrips + buTrips;
-    this.data.todaySummary.totalRevenue = thinhRev + buRev;
-    this.data.todaySummary.cash = thinhCash + buCash;
-    this.data.todaySummary.transfer = thinhTransfer + buTransfer;
-    this.data.todaySummary.fuelExpense = thinhFuel + buFuel;
-    this.data.todaySummary.otherExpense = thinhOther + buOther;
-    this.data.todaySummary.netIncome = thinhNet + buNet;
-  }
-
-  bindEvents() {
-    const headerLeftBtn = document.getElementById('headerLeftBtn');
-    if (headerLeftBtn) {
-      headerLeftBtn.addEventListener('click', () => {
-        if (this.currentScreen === 'screen-overview' || this.currentScreen === 'screen-today') {
-          this.openSideMenu();
-        } else {
-          this.navigateToScreen('screen-overview');
-        }
-      });
+    if (saveHistory && this.currentScreen) {
+      this.historyStack.push(this.currentScreen);
     }
 
-    const headerRightBtn = document.getElementById('headerRightBtn');
-    if (headerRightBtn) {
-      headerRightBtn.addEventListener('click', () => {
-        this.showToast('Thông báo: Lịch giao ca chung 1 xe giữa Thịnh & Bu');
-      });
-    }
+    const prevEl = document.getElementById(this.currentScreen);
+    if (prevEl) prevEl.classList.remove('active');
 
-    document.querySelectorAll('.screen-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.getAttribute('data-target');
-        if (target) this.navigateToScreen(target);
-      });
-    });
-
-    const savedUser = localStorage.getItem('grab_current_user') || 'thinh';
-    const selector = document.getElementById('deviceUserSelector');
-    if (selector) selector.value = savedUser;
-  }
-
-  // Đổi tài khoản thiết bị này là của Thịnh hay của Bu
-  switchDeviceUser(driverId) {
-    if (window.grabSync) window.grabSync.setDeviceUser(driverId);
-    const driverName = driverId === 'thinh' ? 'Thịnh' : 'Bu';
-    this.showToast(`📱 Thiết bị này được đặt là máy của: ${driverName}`);
-    
-    const tripDriverSelect = document.getElementById('tripDriverSelect');
-    if (tripDriverSelect) tripDriverSelect.value = driverId;
-  }
-
-  openSideMenu() {
-    const drawer = document.getElementById('sideDrawerMenu');
-    const backdrop = document.getElementById('drawerBackdrop');
-    if (drawer) drawer.classList.add('active');
-    if (backdrop) backdrop.classList.add('active');
-    this.updateDrawerDriverState();
-  }
-
-  closeSideMenu() {
-    const drawer = document.getElementById('sideDrawerMenu');
-    const backdrop = document.getElementById('drawerBackdrop');
-    if (drawer) drawer.classList.remove('active');
-    if (backdrop) backdrop.classList.remove('active');
-  }
-
-  navigateToScreenFromDrawer(screenId) {
-    this.closeSideMenu();
-    this.navigateToScreen(screenId);
-  }
-
-  updateDrawerDriverState() {
-    const curDriver = (this.data && this.data.vehicle && this.data.vehicle.currentDriverId) || 'thinh';
-    const btnT = document.getElementById('drawerBtnThinh');
-    const btnB = document.getElementById('drawerBtnBu');
-    if (btnT && btnB) {
-      if (curDriver === 'thinh') {
-        btnT.classList.add('active');
-        btnB.classList.remove('active');
-      } else {
-        btnB.classList.add('active');
-        btnT.classList.remove('active');
-      }
-    }
-    document.querySelectorAll('.drawer-item-card, .drawer-nav-item').forEach(item => {
-      if (item.getAttribute('data-screen') === this.currentScreen) {
-        item.classList.add('active');
-      } else {
-        item.classList.remove('active');
-      }
-    });
-  }
-
-  navigateToScreen(screenId) {
-    document.querySelectorAll('.screen-view').forEach(view => view.classList.remove('active'));
-    const targetView = document.getElementById(screenId);
-    if (targetView) {
-      targetView.classList.add('active');
+    const nextEl = document.getElementById(screenId);
+    if (nextEl) {
+      nextEl.classList.add('active');
       this.currentScreen = screenId;
     }
 
-    const content = document.getElementById('appContent');
-    if (content) content.scrollTop = 0;
+    // Ẩn thanh Bottom Nav khi đang ở màn hình Đăng nhập
+    const bottomBar = document.querySelector('.bottom-nav-bar');
+    if (bottomBar) {
+      bottomBar.style.display = (screenId === 'screen-login') ? 'none' : 'flex';
+    }
 
-    this.updateHeaderForScreen(screenId);
+    // Cập nhật trạng thái Bottom Nav
+    this.updateBottomNavState(screenId);
 
-    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
-      if (item.getAttribute('data-target') === screenId) item.classList.add('active');
-      else item.classList.remove('active');
-    });
+    // Re-render chart nếu màn hình có canvas
+    if (screenId === 'screen-dashboard') {
+      setTimeout(() => this.renderDashboardChart(), 80);
+    } else if (screenId === 'screen-analytics') {
+      setTimeout(() => this.renderAnalyticsCharts(), 80);
+    } else if (screenId === 'screen-income-sources') {
+      setTimeout(() => this.renderIncomeSourcesPie(), 80);
+    }
 
-    document.querySelectorAll('.screen-btn').forEach(btn => {
-      if (btn.getAttribute('data-target') === screenId) btn.classList.add('active');
-      else btn.classList.remove('active');
-    });
+    this.setupIcons();
   }
 
-  updateHeaderForScreen(screenId) {
-    const titleEl = document.getElementById('headerTitle');
-    const subtitleEl = document.getElementById('headerSubtitle');
-    const leftIcon = document.getElementById('headerLeftIcon');
-    const rightIcon = document.getElementById('headerRightIcon');
-    const notifBadge = document.getElementById('notifBadge');
-
-    const hamburgerSvg = `<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>`;
-    const backArrowSvg = `<polyline points="15 18 9 12 15 6"/>`;
-    const bellSvg = `<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>`;
-    const calendarSvg = `<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>`;
-
-    if (notifBadge) notifBadge.style.display = 'none';
-
-    switch (screenId) {
-      case 'screen-overview':
-        titleEl.textContent = 'Quản lý chạy Grab';
-        subtitleEl.textContent = 'Cùng nhau kiếm thêm thu nhập';
-        subtitleEl.style.display = 'block';
-        leftIcon.innerHTML = hamburgerSvg;
-        rightIcon.innerHTML = bellSvg;
-        if (notifBadge) notifBadge.style.display = 'block';
-        break;
-
-      case 'screen-schedule':
-        titleEl.textContent = 'Lịch chạy';
-        subtitleEl.style.display = 'none';
-        leftIcon.innerHTML = backArrowSvg;
-        rightIcon.innerHTML = calendarSvg;
-        break;
-
-      case 'screen-income':
-        titleEl.textContent = 'Thu nhập';
-        subtitleEl.style.display = 'none';
-        leftIcon.innerHTML = backArrowSvg;
-        rightIcon.innerHTML = calendarSvg;
-        break;
-
-      case 'screen-notes':
-        titleEl.textContent = 'Chốt / Note cuối ngày';
-        subtitleEl.style.display = 'none';
-        leftIcon.innerHTML = backArrowSvg;
-        rightIcon.innerHTML = calendarSvg;
-        break;
-
-      case 'screen-images':
-        titleEl.textContent = 'Hình ảnh';
-        subtitleEl.style.display = 'none';
-        leftIcon.innerHTML = backArrowSvg;
-        rightIcon.innerHTML = calendarSvg;
-        break;
-
-      case 'screen-reports':
-        titleEl.textContent = 'Báo cáo';
-        subtitleEl.style.display = 'none';
-        leftIcon.innerHTML = backArrowSvg;
-        rightIcon.innerHTML = calendarSvg;
-        break;
-
-      case 'screen-closing':
-        titleEl.textContent = 'Chốt ngày';
-        subtitleEl.style.display = 'none';
-        leftIcon.innerHTML = backArrowSvg;
-        rightIcon.innerHTML = calendarSvg;
-        break;
-
-      case 'screen-today':
-        titleEl.textContent = 'Hôm nay';
-        subtitleEl.textContent = this.getTodayInfo().displayStr;
-        subtitleEl.style.display = 'block';
-        leftIcon.innerHTML = hamburgerSvg;
-        rightIcon.innerHTML = bellSvg;
-        break;
+  goBack() {
+    if (this.currentScreen === 'screen-login') return;
+    if (this.historyStack.length > 0) {
+      const prev = this.historyStack.pop();
+      if (prev === 'screen-login' && this.isLoggedIn) {
+        this.navTo('screen-dashboard', false);
+      } else {
+        this.navTo(prev, false);
+      }
+    } else {
+      this.navTo(this.isLoggedIn ? 'screen-dashboard' : 'screen-login', false);
     }
   }
 
-  // Đổi người giữ xe và phát sóng qua Realtime Sync
-  switchActiveDriver(driverId) {
-    this.data.vehicle.currentDriverId = driverId;
-    const driverName = driverId === 'thinh' ? 'Thịnh' : 'Bu';
-    this.showToast(`Đã chuyển quyền sử dụng xe sang: ${driverName}`);
-    this.saveState();
-    this.renderOverview();
-    this.renderToday();
-    this.renderIncome();
-    if (window.grabSync) window.grabSync.broadcast('SWITCH_DRIVER', { driverId });
+  updateBottomNavState(screenId) {
+    const navMap = {
+      'screen-dashboard': 'navDash',
+      'screen-calendar': 'navCal',
+      'screen-ranking': 'navRank',
+      'screen-profile': 'navProfile'
+    };
+
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    const targetNavId = navMap[screenId];
+    if (targetNavId) {
+      const targetNavEl = document.getElementById(targetNavId);
+      if (targetNavEl) targetNavEl.classList.add('active');
+    }
   }
 
-  renderAll() {
-    this.recalculateBalances();
+  // Quick Action Sheet
+  openQuickActionSheet() {
+    const sheet = document.getElementById('quickActionSheet');
+    if (sheet) sheet.classList.add('show');
+  }
 
-    // Cập nhật tất cả label ngày hôm nay theo thời gian thực
-    const today = this.getTodayInfo();
-    ['scheduleDateText', 'notesDateText', 'galleryDateText'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = today.displayStr;
-    });
-
-    this.renderOverview();
-    this.renderMaintenanceWidget();
-    this.renderCalendarBook();
-    this.renderSchedule();
-    this.renderIncome();
-    this.renderNotes();
-    this.renderGallery();
-    this.renderReports();
-    this.renderClosing();
-    this.renderSpliitSettlement();
-    this.renderClosedHistory();
-    this.renderToday();
+  closeQuickActionSheet() {
+    const sheet = document.getElementById('quickActionSheet');
+    if (sheet) sheet.classList.remove('show');
   }
 
   // ===================================================
-  // 1. RENDER TỔNG QUAN (PHẦN 3)
+  // 1. DASHBOARD
   // ===================================================
-  renderOverview() {
-    const curDriver = this.data.vehicle.currentDriverId || 'thinh';
-    const cardThinh = document.getElementById('cardThinhStatus');
-    const cardBu = document.getElementById('cardBuStatus');
-    const overviewStatus = document.getElementById('overviewVehicleStatus');
+  toggleBalanceVisibility() {
+    this.isBalanceHidden = !this.isBalanceHidden;
+    const balanceEl = document.getElementById('dashMainBalance');
+    const eyeIcon = document.getElementById('eyeBalanceIcon');
+    if (balanceEl) {
+      balanceEl.textContent = this.isBalanceHidden ? '••••••••' : this.formatVND(this.data.overview.currentBalance);
+    }
+    if (eyeIcon) {
+      eyeIcon.setAttribute('data-lucide', this.isBalanceHidden ? 'eye-off' : 'eye');
+      this.setupIcons();
+    }
+  }
 
-    if (cardThinh && cardBu) {
-      if (curDriver === 'thinh') {
-        cardThinh.className = 'driver-pill-card active-driver';
-        cardThinh.querySelector('.badge-status').className = 'badge-status running dot';
-        cardThinh.querySelector('.badge-status').textContent = 'Đang chạy';
+  renderDashboard() {
+    const ov = this.data.overview;
+    const dashBal = document.getElementById('dashMainBalance');
+    if (dashBal && !this.isBalanceHidden) dashBal.textContent = this.formatVND(ov.currentBalance);
 
-        cardBu.className = 'driver-pill-card';
-        cardBu.querySelector('.badge-status').className = 'badge-status available dot';
-        cardBu.querySelector('.badge-status').textContent = 'Sẵn sàng';
+    // Cập nhật lời chào và Avatar người dùng trên Dashboard
+    const avEl = document.getElementById('dashUserAvatar');
+    if (avEl) {
+      avEl.referrerPolicy = "no-referrer";
+      avEl.src = this.getAvatarUrl();
+      avEl.onerror = () => {
+        avEl.onerror = null;
+        avEl.src = this.getDefaultAvatarUrl();
+      };
+    }
+    const nameEl = document.getElementById('dashUserName');
+    if (nameEl) nameEl.textContent = this.data.user.nickname || `${this.data.user.name} 👋`;
+
+    const inc = document.getElementById('dashMonthlyIncome');
+    if (inc) inc.textContent = this.formatVND(ov.monthlyIncome);
+
+    const exp = document.getElementById('dashMonthlyExpense');
+    if (exp) exp.textContent = this.formatVND(ov.monthlyExpense);
+
+    const sav = document.getElementById('dashMonthlySavings');
+    if (sav) sav.textContent = this.formatVND(ov.monthlySavings);
+
+    // Chi tiêu hôm nay
+    const listEl = document.getElementById('dashTodayExpensesList');
+    if (listEl) {
+      if (!this.data.todayExpenses || this.data.todayExpenses.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align: center; padding: 22px 10px; color: var(--text-muted); font-size: 13px;">
+            <i data-lucide="inbox" style="width: 24px; height: 24px; margin: 0 auto 6px auto; display: block; opacity: 0.4;"></i>
+            Hôm nay bạn chưa có chi tiêu nào ✨
+          </div>
+        `;
       } else {
-        cardBu.className = 'driver-pill-card active-driver';
-        cardBu.querySelector('.badge-status').className = 'badge-status running dot';
-        cardBu.querySelector('.badge-status').textContent = 'Đang chạy';
-
-        cardThinh.className = 'driver-pill-card';
-        cardThinh.querySelector('.badge-status').className = 'badge-status available dot';
-        cardThinh.querySelector('.badge-status').textContent = 'Sẵn sàng';
+        listEl.innerHTML = this.data.todayExpenses.map(item => `
+          <div class="expense-item-row">
+            <div class="expense-item-left">
+              <div class="category-icon-circle" style="background: ${item.bg}; color: ${item.color};">
+                <i data-lucide="${item.icon}" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div>
+                <div class="expense-item-name">${item.title}</div>
+                <div class="expense-item-sub">Hôm nay</div>
+              </div>
+            </div>
+            <div class="expense-item-amount">${this.formatVND(item.amount)}</div>
+          </div>
+        `).join('');
       }
     }
 
-    if (overviewStatus) {
-      const hasTrips = (this.data.trips || []).length > 0;
-      overviewStatus.className = hasTrips ? 'badge-status running dot' : 'badge-status available dot';
-      overviewStatus.textContent = hasTrips ? 'Đang hoạt động' : 'Sẵn sàng';
-    }
+    this.renderDashboardChart();
+  }
 
-    const plateEl = document.querySelector('.vehicle-plate');
-    if (plateEl && this.data.vehicle) {
-      plateEl.textContent = this.data.vehicle.plate || '59E2-059.57';
-    }
+  renderDashboardChart() {
+    const canvas = document.getElementById('dashLineChart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (this.dashChart) this.dashChart.destroy();
 
-    // Doanh thu & số chuyến — lọc theo driver đang giữ máy
-    const totalAmountEl = document.getElementById('overviewTotalAmount');
-    const totalTripsEl = document.getElementById('overviewTotalTrips');
-    const cashEl = document.getElementById('overviewCash');
-    const transferEl = document.getElementById('overviewTransfer');
-    const cardTitleEl = document.getElementById('overviewCardTitle');
+    const labels = ['21/08', '28/08', '04/09', '11/09', '18/09'];
+    const hasData = this.data.transactions && this.data.transactions.length > 0;
+    const incomeData = hasData ? [0, 0, 0, 0, this.data.overview.monthlyIncome] : [0, 0, 0, 0, 0];
+    const expenseData = hasData ? [0, 0, 0, 0, this.data.overview.monthlyExpense] : [0, 0, 0, 0, 0];
 
-    const dc = this.data.dailyClosing || {};
-    const d = (curDriver === 'thinh' ? dc.thinh : dc.bu) || {};
-    const driverName = curDriver === 'thinh' ? 'Thịnh' : 'Bu';
-    const hasDriverData = d.trips != null;
-
-    // Nếu có per-driver data, dùng; fallback về incomeOverview (tổng 2 người)
-    const dispTotal    = hasDriverData ? (d.revenue  || 0) : this.data.incomeOverview.total;
-    const dispTrips    = hasDriverData ? (d.trips    || 0) : this.data.incomeOverview.totalTrips;
-    const dispCash     = hasDriverData ? (d.cash     || 0) : this.data.incomeOverview.cash;
-    const dispTransfer = hasDriverData ? (d.transfer || 0) : this.data.incomeOverview.transfer;
-
-    if (cardTitleEl) cardTitleEl.textContent = `Thu nhập ${driverName} hôm nay`;
-    if (totalAmountEl) totalAmountEl.textContent = this.formatMoney(dispTotal);
-    if (totalTripsEl) totalTripsEl.textContent = dispTrips;
-    if (cashEl) cashEl.textContent = this.formatMoney(dispCash);
-    if (transferEl) transferEl.textContent = this.formatMoney(dispTransfer);
-
-    // So sánh với hôm qua (chỉ hiện khi có chênh lệch thực tế)
-    const trendEl = document.getElementById('overviewTrendIndicator');
-    if (trendEl) {
-      const diff = (this.data.incomeOverview && this.data.incomeOverview.diffYesterday) || 0;
-      if (!this.data.incomeOverview || this.data.incomeOverview.total === 0 || diff === 0) {
-        trendEl.style.display = 'none';
-      } else if (diff > 0) {
-        trendEl.style.display = 'inline-flex';
-        trendEl.innerHTML = `<span>↑ +${this.formatMoney(diff)} so với hôm qua</span>`;
-        trendEl.className = 'trend-indicator';
-      } else {
-        trendEl.style.display = 'inline-flex';
-        trendEl.innerHTML = `<span>↓ -${this.formatMoney(Math.abs(diff))} so với hôm qua</span>`;
-        trendEl.className = 'trend-indicator down';
+    this.dashChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Thu nhập',
+            data: incomeData,
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+            borderWidth: 2.5,
+            tension: 0.35,
+            pointRadius: 3,
+            fill: true
+          },
+          {
+            label: 'Chi tiêu',
+            data: expenseData,
+            borderColor: '#EF4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.04)',
+            borderWidth: 2.5,
+            tension: 0.35,
+            pointRadius: 3,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { boxWidth: 8, font: { size: 11, family: 'Plus Jakarta Sans' } }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString('vi-VN')}đ`
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false } },
+          y: {
+            display: false,
+            suggestedMin: 0
+          }
+        }
       }
-    }
+    });
+  }
 
-    // Card Thịnh
-    const thinhAmtEl = document.getElementById('thinhStatAmount');
-    const thinhTripsEl = document.getElementById('thinhStatTrips');
-    const thinhCashEl = document.getElementById('thinhStatCash');
-    const thinhTransEl = document.getElementById('thinhStatTransfer');
-
-    if (thinhAmtEl) thinhAmtEl.textContent = this.formatMoney(this.data.incomeOverview.thinh.total);
-    if (thinhTripsEl) thinhTripsEl.textContent = `${this.data.incomeOverview.thinh.trips} chuyến`;
-    if (thinhCashEl) thinhCashEl.textContent = this.formatMoney(this.data.incomeOverview.thinh.cash);
-    if (thinhTransEl) thinhTransEl.textContent = this.formatMoney(this.data.incomeOverview.thinh.transfer);
-
-    // Card Bu
-    const buAmtEl = document.getElementById('buStatAmount');
-    const buTripsEl = document.getElementById('buStatTrips');
-    const buCashEl = document.getElementById('buStatCash');
-    const buTransEl = document.getElementById('buStatTransfer');
-
-    if (buAmtEl) buAmtEl.textContent = this.formatMoney(this.data.incomeOverview.bu.total);
-    if (buTripsEl) buTripsEl.textContent = `${this.data.incomeOverview.bu.trips} chuyến`;
-    if (buCashEl) buCashEl.textContent = this.formatMoney(this.data.incomeOverview.bu.cash);
-    if (buTransEl) buTransEl.textContent = this.formatMoney(this.data.incomeOverview.bu.transfer);
+  updateDashboardChart(period) {
+    this.showToast(`Đã lọc theo ${period}`);
+    this.renderDashboardChart();
   }
 
   // ===================================================
-  // 2. RENDER CUỐN LỊCH & LỊCH CHẠY (PHẦN 4)
+  // 2. LỊCH THU CHI (CALENDAR)
   // ===================================================
-  renderCalendarBook() {
-    const grid = document.getElementById('calendarDaysGrid');
-    const monthTitle = document.getElementById('calendarMonthTitle');
-    if (!grid || !monthTitle) return;
+  renderCalendar() {
+    const gridEl = document.getElementById('calDaysGrid');
+    if (!gridEl) return;
 
-    monthTitle.innerHTML = `
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      Tháng ${this.currentCalMonth}, ${this.currentCalYear}
-    `;
+    if (!this.data.calendar) {
+      this.data.calendar = { selectedMonth: 9, selectedYear: 2026, selectedDate: "2026-09-20", days: {} };
+    }
 
-    const firstDayIndex = (new Date(this.currentCalYear, this.currentCalMonth - 1, 1).getDay() + 6) % 7;
-    const daysInMonth = new Date(this.currentCalYear, this.currentCalMonth, 0).getDate();
+    const month = this.data.calendar.selectedMonth || 9;
+    const year = this.data.calendar.selectedYear || 2026;
+    const selectedDate = this.data.calendar.selectedDate;
+
+    // Cập nhật tiêu đề hiển thị tháng/năm
+    const monthTitle = document.getElementById('calMonthYearTitle');
+    if (monthTitle) monthTitle.textContent = `Tháng ${month}/${year}`;
+
+    // Tính toán số ngày và offset bắt đầu từ Thứ 2 (T2)
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0: CN, 1: T2, ...
+    const startDayOffset = (firstDayOfWeek + 6) % 7;
+    const prevMonthDays = new Date(year, month - 1, 0).getDate();
 
     let html = '';
-    for (let i = 0; i < firstDayIndex; i++) {
-      html += `<div class="cal-day-cell empty"></div>`;
+    // Ô ngày tháng trước
+    for (let i = 0; i < startDayOffset; i++) {
+      html += `<div class="calendar-day-cell other-month">${prevMonthDays - startDayOffset + 1 + i}</div>`;
     }
 
-    const hasThinhShifts = (this.data.schedules || []).some(s => s.thinhStatus === 'completed');
-    const hasBuShifts = (this.data.schedules || []).some(s => s.buStatus === 'completed');
-
-    const today = this.getTodayInfo();
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const isSelected = (d === this.selectedDay);
-      const isToday = (d === today.day && this.currentCalMonth === today.month && this.currentCalYear === today.year);
-
-      let dotsHtml = '';
-      const daySchedules = this.data.schedules || [];
-      const dayHasThinh = daySchedules.some(s => s.thinhStatus === 'completed');
-      const dayHasBu = daySchedules.some(s => s.buStatus === 'completed');
-      // Hiện dots trên tất cả các ngày có shift (không chỉ hôm nay)
-      if (isToday || isSelected) {
-        if (dayHasThinh) dotsHtml += `<span class="cal-dot thinh" title="Thịnh chạy"></span>`;
-        if (dayHasBu) dotsHtml += `<span class="cal-dot bu" title="Bu chạy"></span>`;
-      }
+    const monthStr = String(month).padStart(2, '0');
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const isoDate = `${year}-${monthStr}-${dayStr}`;
+      const isSelected = (isoDate === selectedDate);
+      
+      const dayRecord = this.data.calendar.days && this.data.calendar.days[isoDate];
+      const hasIncome = dayRecord && dayRecord.income > 0;
+      const hasExpense = dayRecord && dayRecord.expense > 0;
 
       html += `
-        <div class="cal-day-cell ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}" onclick="app.selectCalendarDate(${d})" title="${isToday ? 'Hôm nay' : `Ngày ${d}`}">
-          <span>${d}</span>
-          <div class="cal-day-dots">${dotsHtml}</div>
+        <div class="calendar-day-cell ${isSelected ? 'selected' : ''}" onclick="app.selectCalendarDate('${isoDate}', ${day})">
+          <span>${day}</span>
+          <div class="cal-dots-row">
+            ${hasIncome ? '<span class="cal-dot income"></span>' : ''}
+            ${hasExpense ? '<span class="cal-dot expense"></span>' : ''}
+          </div>
         </div>
       `;
     }
 
-    grid.innerHTML = html;
-    this.updateScheduleDateLabel();
+    gridEl.innerHTML = html;
+    this.renderCalendarDayDetail();
   }
 
-  updateScheduleDateLabel() {
-    const dateObj = new Date(this.currentCalYear, this.currentCalMonth - 1, this.selectedDay);
-    const dayOfWeek = dateObj.getDay();
-    const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-    const dayName = dayNames[dayOfWeek];
-    const dd = String(this.selectedDay).padStart(2, '0');
-    const mm = String(this.currentCalMonth).padStart(2, '0');
-    const yyyy = this.currentCalYear;
-    const dateStr = `${dayName}, ${dd}/${mm}/${yyyy}`;
+  selectCalendarDate(isoDate, day) {
+    this.data.calendar.selectedDate = isoDate;
+    this.renderCalendar();
+  }
 
-    const dateLabel = document.getElementById('selectedScheduleDateLabel');
-    if (dateLabel) {
-      dateLabel.innerHTML = `
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        ${dateStr}
-      `;
+  changeMonth(delta) {
+    if (!this.data.calendar) {
+      this.data.calendar = { selectedMonth: 9, selectedYear: 2026, selectedDate: "2026-09-20", days: {} };
     }
-    return dateStr;
-  }
-
-  selectCalendarDate(day) {
-    this.selectedDay = day;
-    const dateStr = this.updateScheduleDateLabel();
-    this.renderCalendarBook();
-    this.renderSchedule();
-    this.showToast(`📅 Đã mở lịch ngày ${dateStr}`);
-  }
-
-  goToTodaySchedule() {
-    const today = this.getTodayInfo();
-    this.currentCalYear = today.year;
-    this.currentCalMonth = today.month;
-    this.selectedDay = today.day;
-    this.selectCalendarDate(today.day);
-    this.showToast(`📅 Đã chuyển về đúng ngày hôm nay (${today.displayStr})!`);
-  }
-
-  changeCalendarMonth(delta) {
-    this.currentCalMonth += delta;
-    if (this.currentCalMonth > 12) {
-      this.currentCalMonth = 1;
-      this.currentCalYear++;
-    } else if (this.currentCalMonth < 1) {
-      this.currentCalMonth = 12;
-      this.currentCalYear--;
+    let m = (this.data.calendar.selectedMonth || 9) + delta;
+    let y = this.data.calendar.selectedYear || 2026;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    } else if (m > 12) {
+      m = 1;
+      y += 1;
     }
-    this.renderCalendarBook();
-    this.showToast(`Cuốn lịch: Tháng ${this.currentCalMonth}/${this.currentCalYear}`);
+    this.data.calendar.selectedMonth = m;
+    this.data.calendar.selectedYear = y;
+    this.data.calendar.selectedDate = `${y}-${String(m).padStart(2, '0')}-01`;
+    this.saveData();
+    this.renderCalendar();
+    this.showToast(`Đã chuyển sang Tháng ${m}/${y}`);
   }
 
-  renderSchedule() {
-    const container = document.getElementById('scheduleListRows');
-    if (!container) return;
+  setCalendarView(view, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.showToast(`Xem theo ${view}`);
+  }
 
-    let html = '';
-    (this.data.schedules || []).forEach(slot => {
-      const thinhBadge = this.getScheduleBadgeHtml(slot.thinh, slot.thinhStatus);
-      const buBadge = this.getScheduleBadgeHtml(slot.bu, slot.buStatus);
+  renderCalendarDayDetail() {
+    const dateStr = this.data.calendar.selectedDate || '2026-09-20';
+    const parts = dateStr.split('-');
+    const formatted = `${parts[2]}/${parts[1]}/${parts[0]}`;
 
-      html += `
-        <div class="schedule-row">
-          <span class="time-slot-label">${slot.timeSlot}</span>
-          <div class="schedule-cell" onclick="app.openSlotAction('${slot.timeSlot}', 'thinh')">${thinhBadge}</div>
-          <div class="schedule-cell" onclick="app.openSlotAction('${slot.timeSlot}', 'bu')">${buBadge}</div>
+    const titleEl = document.getElementById('calSelectedDateTitle');
+    if (titleEl) titleEl.textContent = formatted;
+
+    const dayData = (this.data.calendar.days && this.data.calendar.days[dateStr]) || {
+      income: 0,
+      expense: 0,
+      net: 0,
+      transactions: []
+    };
+
+    const incEl = document.getElementById('calDayIncome');
+    if (incEl) incEl.textContent = '+' + this.formatVND(dayData.income);
+
+    const expEl = document.getElementById('calDayExpense');
+    if (expEl) expEl.textContent = '-' + this.formatVND(dayData.expense);
+
+    const netEl = document.getElementById('calDayNet');
+    if (netEl) netEl.textContent = (dayData.net >= 0 ? '+' : '-') + this.formatVND(Math.abs(dayData.net));
+
+    const listEl = document.getElementById('calDayTxList');
+    if (listEl) {
+      if (!dayData.transactions || dayData.transactions.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align: center; padding: 20px 8px; color: var(--text-muted); font-size: 13px;">
+            <i data-lucide="calendar" style="width: 24px; height: 24px; margin: 0 auto 6px auto; display: block; opacity: 0.4;"></i>
+            Chưa có giao dịch trong ngày này
+          </div>
+        `;
+      } else {
+        listEl.innerHTML = dayData.transactions.map(tx => `
+          <div class="expense-item-row">
+            <div class="expense-item-left">
+              <div class="category-icon-circle" style="background: ${tx.type === 'income' ? '#D1FAE5' : '#FEE2E2'}; color: ${tx.type === 'income' ? '#10B981' : '#EF4444'};">
+                <i data-lucide="${tx.icon || 'circle'}" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div>
+                <div class="expense-item-name">${tx.title}</div>
+                <div class="expense-item-sub">${tx.time || tx.category}</div>
+              </div>
+            </div>
+            <div class="${tx.type === 'income' ? 'tx-amount-green' : 'tx-amount-red'}">
+              ${tx.type === 'income' ? '+' : '-'}${this.formatVND(tx.amount)}
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
+    this.setupIcons();
+  }
+
+  // ===================================================
+  // 3. DANH SÁCH GIAO DỊCH
+  // ===================================================
+  renderTransactionsList(filterType = 'all', searchQuery = '') {
+    const listEl = document.getElementById('allTransactionsList');
+    if (!listEl) return;
+
+    let items = this.data.transactions || [];
+    if (filterType !== 'all') {
+      items = items.filter(tx => tx.type === filterType);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(tx => tx.title.toLowerCase().includes(q) || tx.category.toLowerCase().includes(q));
+    }
+
+    if (items.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 13px;">
+          <i data-lucide="receipt" style="width: 32px; height: 32px; margin: 0 auto 8px auto; display: block; opacity: 0.4;"></i>
+          Chưa có giao dịch nào.<br>Bấm nút <b>+ Thêm giao dịch</b> để bắt đầu ghi chép!
         </div>
       `;
-    });
-    container.innerHTML = html;
+      this.setupIcons();
+      return;
+    }
+
+    listEl.innerHTML = items.map(tx => {
+      const isIncome = tx.type === 'income';
+      const isTransfer = tx.type === 'transfer';
+      const color = isIncome ? '#10B981' : (isTransfer ? '#3B82F6' : '#EF4444');
+      const bg = isIncome ? '#D1FAE5' : (isTransfer ? '#DBEAFE' : '#FEE2E2');
+
+      const safeTitle = this.escapeHtml(tx.title);
+      const safeCat = this.escapeHtml(tx.category);
+      const safeDate = this.escapeHtml(tx.date);
+      const safeTime = this.escapeHtml(tx.time);
+
+      return `
+        <div class="expense-item-row" onclick="app.showToast('Giao dịch: ' + '${this.formatVND(tx.amount)}')">
+          <div class="expense-item-left">
+            <div class="category-icon-circle" style="background: ${bg}; color: ${color};">
+              <i data-lucide="${this.escapeHtml(tx.icon || 'credit-card')}" style="width: 18px; height: 18px;"></i>
+            </div>
+            <div>
+              <div class="expense-item-name">${safeTitle}</div>
+              <div class="expense-item-sub">${safeCat} • ${safeDate} ${safeTime}</div>
+            </div>
+          </div>
+          <div class="${isIncome ? 'tx-amount-green' : (isTransfer ? '' : 'tx-amount-red')}" style="${isTransfer ? 'color: #3B82F6;' : ''}">
+            ${isIncome ? '+' : (isTransfer ? '' : '-')}${this.formatVND(tx.amount)}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    this.setupIcons();
   }
 
-  getScheduleBadgeHtml(text, status) {
-    if (status === 'completed') {
-      return `<span class="badge-status completed dot"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> ${text}</span>`;
-    } else if (status === 'available') {
-      return `<span class="badge-status available dot"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> ${text}</span>`;
+  filterTxTab(type, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.renderTransactionsList(type);
+  }
+
+  searchTransactions(query) {
+    this.renderTransactionsList('all', query);
+  }
+
+  // ===================================================
+  // 4. THÊM GIAO DỊCH
+  // ===================================================
+  openAddTx(type = 'income') {
+    this.setAddType(type);
+    this.navTo('screen-add-transaction');
+  }
+
+  setAddType(type) {
+    this.currentAddType = type;
+    const tabInc = document.getElementById('tabAddIncome');
+    const tabExp = document.getElementById('tabAddExpense');
+    if (type === 'income') {
+      if (tabInc) tabInc.classList.add('active');
+      if (tabExp) tabExp.classList.remove('active');
     } else {
-      return `<span class="badge-status off dot">${text}</span>`;
+      if (tabExp) tabExp.classList.add('active');
+      if (tabInc) tabInc.classList.remove('active');
     }
   }
 
-  // Mở modal thao tác ca chạy trực tiếp
-  openSlotAction(timeSlot, driverId) {
-    this.activeSlot = { timeSlot, driverId };
-    const driverName = driverId === 'thinh' ? 'Thịnh' : 'Bu';
-    const modal = document.getElementById('slotActionModal');
-    const titleEl = document.getElementById('slotActionTitle');
-    const descEl = document.getElementById('slotActionDesc');
-
-    if (titleEl) titleEl.textContent = `Quản Lý Ca Chạy • ${driverName}`;
-    if (descEl) descEl.textContent = `Khung giờ: ${timeSlot} (Chung xe Air Blade 125)`;
-    if (modal) modal.classList.add('active');
+  formatAddAmount(input) {
+    const num = this.parseVND(input.value);
+    input.value = num > 0 ? num.toLocaleString('vi-VN') + ' đ' : '';
   }
 
-  setSlotStatus(status) {
-    if (!this.activeSlot) return;
-    const { timeSlot, driverId } = this.activeSlot;
-    const slotObj = this.data.schedules.find(s => s.timeSlot === timeSlot);
-    if (!slotObj) return;
+  quickFill(desc, amount, category, type) {
+    this.setAddType(type);
+    const amtInput = document.getElementById('addAmountInput');
+    if (amtInput) amtInput.value = amount.toLocaleString('vi-VN') + ' đ';
 
-    if (status === 'cancel' || status === 'off') {
-      if (driverId === 'thinh') {
-        slotObj.thinh = 'Nghỉ';
-        slotObj.thinhStatus = 'off';
+    const noteInput = document.getElementById('addNoteInput');
+    if (noteInput) noteInput.value = desc;
+
+    this.selectedCategory = category;
+    const catLabel = document.getElementById('addCatLabel');
+    if (catLabel) catLabel.textContent = category;
+
+    this.showToast(`Đã điền nhanh: ${category}`);
+  }
+
+  openCategorySheet() {
+    const categories = [
+      { name: "Công việc", icon: "briefcase" },
+      { name: "Grab", icon: "car" },
+      { name: "Lương", icon: "dollar-sign" },
+      { name: "Ăn uống", icon: "utensils" },
+      { name: "Xăng xe", icon: "fuel" },
+      { name: "Mua sắm", icon: "shopping-bag" },
+      { name: "Giải trí", icon: "coffee" },
+      { name: "Nhà ở", icon: "home" },
+      { name: "Khác", icon: "more-horizontal" }
+    ];
+
+    const container = document.getElementById('categoryListContainer');
+    if (container) {
+      container.innerHTML = categories.map(c => `
+        <div class="menu-list-item" onclick="app.chooseCategory('${c.name}', '${c.icon}')">
+          <div class="menu-item-left">
+            <i data-lucide="${c.icon}" style="width: 18px; height: 18px; color: var(--primary-green);"></i>
+            <span>${c.name}</span>
+          </div>
+          <i data-lucide="check" style="width: 16px; height: 16px; opacity: ${this.selectedCategory === c.name ? 1 : 0}; color: var(--primary-green);"></i>
+        </div>
+      `).join('');
+    }
+
+    const sheet = document.getElementById('catSelectSheet');
+    if (sheet) sheet.classList.add('show');
+    this.setupIcons();
+  }
+
+  chooseCategory(name, icon) {
+    this.selectedCategory = name;
+    this.selectedCatIcon = icon;
+    const label = document.getElementById('addCatLabel');
+    if (label) label.textContent = name;
+    const iconEl = document.getElementById('addCatIcon');
+    if (iconEl) iconEl.setAttribute('data-lucide', icon);
+    this.closeCategorySheet();
+    this.setupIcons();
+  }
+
+  closeCategorySheet() {
+    const sheet = document.getElementById('catSelectSheet');
+    if (sheet) sheet.classList.remove('show');
+  }
+
+  selectAccount(accName) {
+    this.selectedAccount = (accName === 'Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+    
+    // Cập nhật giao diện Segmented Control nếu có
+    const tabBank = document.getElementById('tabAccBank');
+    const tabCash = document.getElementById('tabAccCash');
+    if (tabBank && tabCash) {
+      if (this.selectedAccount === 'Tiền mặt') {
+        tabCash.classList.add('active');
+        tabBank.classList.remove('active');
       } else {
-        slotObj.bu = 'Nghỉ';
-        slotObj.buStatus = 'off';
+        tabBank.classList.add('active');
+        tabCash.classList.remove('active');
       }
-      this.showToast(`Đã hủy ca ${timeSlot}`);
-    } else {
-      // Xung đột chỉ khi người kia đang chạy thực sự, không phải Trống
-      const otherStatus = driverId === 'thinh' ? slotObj.buStatus : slotObj.thinhStatus;
-      if (otherStatus === 'running' || otherStatus === 'completed') {
-        alert('Xe đã có lịch trong khoảng thời gian này.');
+    }
+
+    // Cập nhật label/icon cũ nếu có
+    const lbl = document.getElementById('addAccountLabel');
+    if (lbl) lbl.textContent = this.selectedAccount;
+    const icon = document.getElementById('addAccountIcon');
+    if (icon) icon.setAttribute('data-lucide', this.selectedAccount === 'Ngân hàng' ? 'landmark' : 'banknote');
+
+    this.showToast(`Đã chọn: ${this.selectedAccount}`);
+    this.setupIcons();
+  }
+
+  openAccountSheet() {
+    this.selectAccount(this.selectedAccount === 'Tiền mặt' ? 'Ngân hàng' : 'Tiền mặt');
+  }
+
+  // Quét OCR hóa đơn
+  async handleReceiptScan(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const notice = document.getElementById('ocrStatusNotice');
+    if (notice) {
+      notice.style.display = 'block';
+      notice.textContent = '⏳ Đang quét hóa đơn qua OCR AI...';
+    }
+
+    try {
+      if (this.ocr) {
+        const res = await this.ocr.scanImage(file, (pct) => {
+          if (notice) notice.textContent = `⏳ Đang quét hóa đơn... ${pct}%`;
+        });
+
+        if (res.amount && res.amount > 0) {
+          const amtInput = document.getElementById('addAmountInput');
+          if (amtInput) amtInput.value = res.amount.toLocaleString('vi-VN') + ' đ';
+        }
+
+        if (res.note) {
+          const noteInput = document.getElementById('addNoteInput');
+          if (noteInput) noteInput.value = res.note;
+        }
+
+        if (notice) notice.textContent = `✅ Đã quét thành công! Số tiền: ${this.formatVND(res.amount || 0)}`;
+        this.showToast(`Quét hóa đơn thành công!`);
+      }
+    } catch (e) {
+      console.error(e);
+      if (notice) notice.textContent = '⚠️ Không đọc được text, hãy nhập tay.';
+    }
+  }
+
+  handleReceiptImage(event) {
+    const file = event.target.files && event.target.files[0];
+    if (file) {
+      this.showToast('Đã đính kèm ảnh hóa đơn 🖼');
+    }
+  }
+
+  submitNewTransaction() {
+    if (this.isSubmittingTx) return;
+    this.isSubmittingTx = true;
+
+    try {
+      const amtInput = document.getElementById('addAmountInput');
+      const amount = this.parseVND(amtInput ? amtInput.value : 0);
+
+      if (amount <= 0 || !Number.isFinite(amount) || amount > 1e15) {
+        this.showToast('Vui lòng nhập số tiền hợp lệ (> 0đ)!');
         return;
       }
 
-      const statusText = status === 'completed' ? 'Đã chạy' : 'Trống';
-      if (driverId === 'thinh') {
-        slotObj.thinh = statusText;
-        slotObj.thinhStatus = status;
-      } else {
-        slotObj.bu = statusText;
-        slotObj.buStatus = status;
+      const noteRaw = document.getElementById('addNoteInput')?.value?.trim();
+      const note = noteRaw ? this.escapeHtml(noteRaw) : this.selectedCategory;
+      const dateVal = document.getElementById('addDateInput')?.value || this.getLocalDateString();
+      const timeVal = document.getElementById('addTimeInput')?.value || '12:00';
+
+      const parts = dateVal.split('-');
+      const dateDisplay = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateVal;
+
+      // Chọn tài khoản ví để áp dụng biến động
+      if (!this.data.wallets || !this.data.wallets.accounts || this.data.wallets.accounts.length === 0) {
+        this.recalculateBalances();
       }
-      const driverName = driverId === 'thinh' ? 'Thịnh' : 'Bu';
-      this.showToast(`✓ Đã đăng ký ca ${timeSlot} cho ${driverName}!`);
-    }
-
-    this.saveState();
-    this.renderCalendarBook();
-    this.renderSchedule();
-    this.closeModal('slotActionModal');
-
-    if (window.grabSync) window.grabSync.broadcast('UPDATE_SCHEDULE', { schedules: this.data.schedules });
-  }
-
-  handleSaveSchedule(e) {
-    e.preventDefault();
-    const driverId = document.getElementById('scheduleDriverSelect').value;
-    const timeSlot = document.getElementById('scheduleTimeSlotSelect').value;
-    const status = document.getElementById('scheduleStatusSelect').value;
-
-    const slotObj = this.data.schedules.find(s => s.timeSlot === timeSlot);
-    if (!slotObj) return;
-
-    const otherStatus = driverId === 'thinh' ? slotObj.buStatus : slotObj.thinhStatus;
-    if (status !== 'off' && (otherStatus === 'running' || otherStatus === 'completed')) {
-      alert('Xe đã có lịch trong khoảng thời gian này.');
-      return;
-    }
-
-    if (driverId === 'thinh') {
-      slotObj.thinh = status === 'completed' ? 'Đã chạy' : (status === 'available' ? 'Trống' : 'Nghỉ');
-      slotObj.thinhStatus = status;
-    } else {
-      slotObj.bu = status === 'completed' ? 'Đã chạy' : (status === 'available' ? 'Trống' : 'Nghỉ');
-      slotObj.buStatus = status;
-    }
-
-    this.saveState();
-    this.renderCalendarBook();
-    this.renderSchedule();
-    this.closeModal('scheduleModal');
-    this.showToast(`Đã lưu ca ${timeSlot} cho ${driverId === 'thinh' ? 'Thịnh' : 'Bu'}`);
-
-    if (window.grabSync) window.grabSync.broadcast('UPDATE_SCHEDULE', { schedules: this.data.schedules });
-  }
-
-  // ===================================================
-  // 3. RENDER THU NHẬP & TỔNG KẾT THEO NGÀY
-  // ===================================================
-  renderIncome() {
-    const incTotal = document.getElementById('incomeScreenTotal');
-    const incCash = document.getElementById('incomeScreenCash');
-    const incTransfer = document.getElementById('incomeScreenTransfer');
-    const incTrips = document.getElementById('incomeScreenTrips');
-
-    const curDriver = (this.data.vehicle && this.data.vehicle.currentDriverId) || 'thinh';
-    const ov = this.data.incomeOverview || {};
-    const driverOv = ov[curDriver] || {};
-    if (incTotal)    incTotal.textContent    = this.formatMoney(driverOv.total || 0);
-    if (incCash)     incCash.textContent     = this.formatMoney(driverOv.cash || 0);
-    if (incTransfer) incTransfer.textContent = this.formatMoney(driverOv.transfer || 0);
-    if (incTrips)    incTrips.textContent    = driverOv.trips || 0;
-
-    const container = document.getElementById('tripsListContainer');
-    if (!container) return;
-
-    // Gom nhom theo ngay, chi lay cua curDriver
-    const dayMap = {};
-
-    (this.data.dailyRevenues || []).filter(dr => dr.driverId === curDriver).forEach(dr => {
-      const key = dr.date;
-      if (!dayMap[key]) dayMap[key] = { total: 0, cash: 0, transfer: 0, trips: 0 };
-      dayMap[key].cash += dr.cash || 0;
-      dayMap[key].transfer += dr.transfer || 0;
-      dayMap[key].total += (dr.cash || 0) + (dr.transfer || 0);
-      dayMap[key].trips += dr.trips || 0;
-    });
-
-    (this.data.trips || []).filter(t => t.driverId === curDriver).forEach(t => {
-      const key = (t.date || '').slice(0, 10);
-      if (!key) return;
-      if (!dayMap[key]) dayMap[key] = { total: 0, cash: 0, transfer: 0, trips: 0 };
-      const amt = parseInt(t.amount) || 0;
-      dayMap[key].total += amt;
-      dayMap[key].trips += 1;
-      if (t.type === 'cash') dayMap[key].cash += amt; else dayMap[key].transfer += amt;
-    });
-
-    const days = Object.keys(dayMap).sort((a, b) => b.localeCompare(a));
-    const driverName = curDriver === 'thinh' ? 'Thinh' : 'Bu';
-
-    if (days.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">Chua co du lieu cho ' + driverName + '.<br>Bam "Ghi nhan doanh thu ngay" de them.</div>';
-      return;
-    }
-
-    const fmt = function(d) { var p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; };
-
-    const self = this;
-    container.innerHTML = days.map(function(day) {
-      var d = dayMap[day];
-      return '<div style="background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">' +
-        '<div>' +
-          '<div style="font-weight:700;font-size:13px;color:var(--text-main);margin-bottom:3px;">' + fmt(day) + '</div>' +
-          '<div style="font-size:12px;color:var(--text-muted);">' +
-            self.formatMoney(d.cash) + ' TM  /  ' + self.formatMoney(d.transfer) + ' CK' +
-            (d.trips ? '  /  ' + d.trips + ' chuyen' : '') +
-          '</div>' +
-        '</div>' +
-        '<div style="font-weight:800;font-size:15px;color:var(--primary-green);">' + self.formatMoney(d.total) + '</div>' +
-      '</div>';
-    }).join('');
-  }
-
-  handleSaveDailyRevenue(e) {
-    e.preventDefault();
-    const driverId = document.getElementById('drDriverSelect').value;
-    const date = document.getElementById('drDateInput').value;
-    const cash = parseInt(document.getElementById('drCashInput').value) || 0;
-    const transfer = parseInt(document.getElementById('drTransferInput').value) || 0;
-    const trips = parseInt(document.getElementById('drTripsInput').value) || 0;
-
-    if (!date || (cash + transfer) <= 0) {
-      this.showToast('Vui l\u00f2ng ch\u1ecdn ng\u00e0y v\u00e0 nh\u1eadp s\u1ed1 ti\u1ec1n!');
-      return;
-    }
-
-    if (!this.data.dailyRevenues) this.data.dailyRevenues = [];
-    this.data.dailyRevenues.unshift({ id: 'dr-' + Date.now(), date, driverId, cash, transfer, trips });
-
-    this.saveState();
-    this.recalculateBalances();
-    this.renderAll();
-    this.closeModal('dailyRevenueModal');
-    e.target.reset();
-    this.showToast('\u2713 \u0110\u00e3 ghi nh\u1eadn ' + this.formatMoney(cash + transfer) + ' ng\u00e0y ' + date.split('-').reverse().join('/') + '!');
-  }
-
-  openDailyRevenueModal() {
-    const dateInput = document.getElementById('drDateInput');
-    if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
-    this.openModal('dailyRevenueModal');
-  }
-
-  async handleOcrScanDailyRevenue(fileInput) {
-    if (!fileInput.files || !fileInput.files[0]) return;
-    const file = fileInput.files[0];
-    const notice  = document.getElementById('ocrDrScanningNotice');
-    const bar     = document.getElementById('ocrDrProgressBarFill');
-    const pct     = document.getElementById('ocrDrPercentText');
-    const status  = document.getElementById('ocrDrStatusText');
-
-    if (notice) notice.style.display = 'block';
-    if (bar) bar.style.width = '10%';
-    if (pct) pct.textContent = '10%';
-    if (status) status.textContent = '⏳ Tesseract OCR: Đang nạp mô hình...';
-
-    try {
-      const scanned = await window.grabOCR.scanImage(file, (percent) => {
-        if (bar) bar.style.width = `${percent}%`;
-        if (pct) pct.textContent = `${percent}%`;
-        if (status) {
-          status.textContent = percent < 90
-            ? `⏳ Đang quét ảnh tổng kết (${percent}%)...`
-            : '✨ Đang trích xuất doanh thu...';
-        }
-      });
-
-      // Điền vào form dựa theo loại thanh toán nhận diện được
-      const cashEl     = document.getElementById('drCashInput');
-      const transferEl = document.getElementById('drTransferInput');
-      const tripsEl    = document.getElementById('drTripsInput');
-      const driverEl   = document.getElementById('drDriverSelect');
-
-      if (scanned.amount > 0) {
-        // Nếu phân biệt được cash/transfer → điền đúng ô
-        if (scanned.paymentType === 'transfer') {
-          if (transferEl) transferEl.value = scanned.amount;
-        } else {
-          if (cashEl) cashEl.value = scanned.amount;
-        }
-        // Nếu scan thấy cả cash lẫn transfer riêng
-        if (scanned.cash && cashEl)         cashEl.value     = scanned.cash;
-        if (scanned.transfer && transferEl) transferEl.value = scanned.transfer;
-      }
-      if (scanned.trips && tripsEl)       tripsEl.value    = scanned.trips;
-      if (scanned.driverHint && driverEl) driverEl.value   = scanned.driverHint;
-
-      const total = (parseInt(cashEl?.value) || 0) + (parseInt(transferEl?.value) || 0);
-      this.showToast(`✨ OCR nhận diện (${scanned.method}): ${this.formatMoney(total)} — Kiểm tra và nhấn Lưu!`);
-    } catch (e) {
-      console.error(e);
-      this.showToast('Không thể phân tích ảnh. Vui lòng nhập thủ công!');
-    } finally {
-      setTimeout(() => {
-        if (notice) notice.style.display = 'none';
-        if (bar) bar.style.width = '0%';
-        if (pct) pct.textContent = '0%';
-      }, 800);
-      fileInput.value = '';
-    }
-  }
-
-  openTripActions(tripId) {
-    const trip = (this.data.trips || []).find(t => t.id === tripId);
-    if (!trip) return;
-
-    document.getElementById('editTripId').value = trip.id;
-    document.getElementById('editTripDriver').value = trip.driverId;
-    document.getElementById('editTripTime').value = trip.time;
-    document.getElementById('editTripAmount').value = trip.amount;
-    document.getElementById('editTripType').value = trip.type;
-    document.getElementById('editTripNote').value = trip.note;
-
-    this.openModal('tripDetailModal');
-  }
-
-  handleUpdateTrip(e) {
-    e.preventDefault();
-    const id = document.getElementById('editTripId').value;
-    const trip = (this.data.trips || []).find(t => t.id === id);
-    if (!trip) return;
-
-    trip.driverId = document.getElementById('editTripDriver').value;
-    trip.time = document.getElementById('editTripTime').value;
-    trip.amount = parseInt(document.getElementById('editTripAmount').value) || 0;
-    trip.type = document.getElementById('editTripType').value;
-    trip.note = document.getElementById('editTripNote').value;
-
-    this.saveState();
-    this.recalculateBalances();
-    this.renderAll();
-    this.closeModal('tripDetailModal');
-    this.showToast('✓ Đã cập nhật thông tin chuyến đi!');
-  }
-
-  handleDeleteCurrentTrip() {
-    const id = document.getElementById('editTripId').value;
-    if (!confirm('Bạn có chắc chắn muốn xóa chuyến đi này không?')) return;
-
-    this.data.trips = (this.data.trips || []).filter(t => t.id !== id);
-    this.saveState();
-    this.recalculateBalances();
-    this.renderAll();
-    this.closeModal('tripDetailModal');
-    this.showToast('🗑️ Đã xóa chuyến đi thành công!');
-  }
-
-  handleSaveTrip(e) {
-    e.preventDefault();
-    const driverId = document.getElementById('tripDriverSelect').value;
-    const time = document.getElementById('tripTimeInput').value || '18:00';
-    const amount = parseInt(document.getElementById('tripAmountInput').value) || 0;
-    const type = document.getElementById('tripTypeSelect').value;
-    const note = document.getElementById('tripNoteInput').value || 'Chuyến xe Grab';
-
-    if (amount <= 0) {
-      this.showToast('Vui lòng nhập số tiền hợp lệ!');
-      return;
-    }
-
-    const newTrip = {
-      id: 'trip-' + Date.now(),
-      date: new Date().toISOString().slice(0, 10),
-      time,
-      amount,
-      type,
-      note,
-      driverId
-    };
-
-    if (!this.data.trips) this.data.trips = [];
-    this.data.trips.unshift(newTrip);
-    this.recalculateBalances();
-    this.saveState();
-    this.renderAll();
-    this.closeModal('tripModal');
-    if (e && e.target && typeof e.target.reset === 'function') e.target.reset();
-
-    const driverName = driverId === 'thinh' ? 'Thịnh' : 'Bu';
-    this.showToast(`✓ Đã thêm chuyến ${this.formatMoney(amount)} cho ${driverName}!`);
-
-    if (window.grabSync) window.grabSync.broadcast('ADD_TRIP', { trip: newTrip });
-  }
-
-  // ===================================================
-  // 4. RENDER GHI CHÚ & TIMELINE (PHẦN 7)
-  // ===================================================
-  renderNotes() {
-    const container = document.getElementById('timelineNotesContainer');
-    if (!container) return;
-
-    if (!this.data.notes || this.data.notes.length === 0) {
-      container.innerHTML = `
-        <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">
-          Chưa có ghi chú nào trong ngày.<br>Nhập nội dung ở ô trên để thêm note nhanh.
-        </div>
-      `;
-    } else {
-      let html = '';
-      this.data.notes.forEach(note => {
-        let nodeClass = '';
-        if (note.tagColor === '#1971C2') nodeClass = 'blue';
-        else if (note.tagColor === '#0C7247') nodeClass = 'green';
-        else if (note.tagColor === '#E03131') nodeClass = 'red';
-        else if (note.tagColor === '#868E96') nodeClass = 'gray';
-
-        const imageThumbHtml = note.hasImage ? `
-          <div class="timeline-thumb" onclick="app.openLightboxGraphic('petrol', 'Hóa đơn đổ xăng')">
-            <span>⛽ Chi tiết</span>
-          </div>
-        ` : '';
-
-        html += `
-          <div class="timeline-item" onclick="app.openNoteActions('${note.id}')" title="Bấm để sửa/xóa ghi chú">
-            <div class="timeline-node ${nodeClass}"></div>
-            <div class="timeline-header">
-              <span class="timeline-time">${note.time}</span>
-              <span style="font-size: 11px; color: var(--text-muted);">✎ Sửa</span>
-            </div>
-            <div class="timeline-content">${note.content}</div>
-            <div class="timeline-sub">${note.driver} • ${note.date}</div>
-            ${imageThumbHtml}
-          </div>
-        `;
-      });
-      container.innerHTML = html;
-    }
-
-    // Cập nhật card Chốt tài chính cuối ngày trên Screen 4 (Bảo đảm tự động reset sạch 0đ)
-    const finTotalRev = document.getElementById('finTotalRev');
-    const finCash = document.getElementById('finCash');
-    const finTransfer = document.getElementById('finTransfer');
-    const finWallet = document.getElementById('finWallet');
-    const finFuel = document.getElementById('finFuel');
-    const finOther = document.getElementById('finOther');
-
-    const totalFuel = ((this.data.dailyClosing && this.data.dailyClosing.thinh && this.data.dailyClosing.thinh.fuelExpense) || 0) +
-                      ((this.data.dailyClosing && this.data.dailyClosing.bu && this.data.dailyClosing.bu.fuelExpense) || 0);
-    const totalOther = ((this.data.dailyClosing && this.data.dailyClosing.thinh && this.data.dailyClosing.thinh.otherExpense) || 0) +
-                       ((this.data.dailyClosing && this.data.dailyClosing.bu && this.data.dailyClosing.bu.otherExpense) || 0);
-    const walletRem = (this.data.todaySummary && this.data.todaySummary.walletRemaining) || 
-                      (this.data.dailyClosing && this.data.dailyClosing.walletRemaining) || 0;
-
-    if (finTotalRev) finTotalRev.value = this.formatMoney((this.data.incomeOverview && this.data.incomeOverview.total) || 0);
-    if (finCash) finCash.value = this.formatMoney((this.data.incomeOverview && this.data.incomeOverview.cash) || 0);
-    if (finTransfer) finTransfer.value = this.formatMoney((this.data.incomeOverview && this.data.incomeOverview.transfer) || 0);
-    if (finWallet) finWallet.value = this.formatMoney(walletRem);
-    if (finFuel) finFuel.value = this.formatMoney(totalFuel);
-    if (finOther) finOther.value = this.formatMoney(totalOther);
-  }
-
-  openNoteActions(noteId) {
-    const note = (this.data.notes || []).find(n => n.id === noteId);
-    if (!note) return;
-
-    document.getElementById('editNoteId').value = note.id;
-    document.getElementById('editNoteContent').value = note.content;
-    document.getElementById('editNoteDriver').value = note.driver;
-    this.openModal('noteActionModal');
-  }
-
-  handleUpdateNote(e) {
-    e.preventDefault();
-    const id = document.getElementById('editNoteId').value;
-    const note = (this.data.notes || []).find(n => n.id === id);
-    if (!note) return;
-
-    note.content = document.getElementById('editNoteContent').value;
-    note.driver = document.getElementById('editNoteDriver').value;
-    note.tagColor = note.driver === 'Thịnh' ? '#0C7247' : '#1971C2';
-
-    this.saveState();
-    this.renderNotes();
-    this.closeModal('noteActionModal');
-    this.showToast('✓ Đã cập nhật ghi chú!');
-  }
-
-  handleDeleteCurrentNote() {
-    const id = document.getElementById('editNoteId').value;
-    if (!confirm('Bạn có chắc chắn muốn xóa ghi chú này không?')) return;
-
-    this.data.notes = (this.data.notes || []).filter(n => n.id !== id);
-    this.saveState();
-    this.renderNotes();
-    this.closeModal('noteActionModal');
-    this.showToast('🗑️ Đã xóa ghi chú!');
-  }
-
-  submitQuickNote() {
-    const input = document.getElementById('quickNoteInput');
-    if (!input || !input.value.trim()) {
-      this.showToast('Vui lòng nhập nội dung ghi chú!');
-      return;
-    }
-
-    const curDeviceUser = localStorage.getItem('grab_current_user') || 'thinh';
-    const curDriverName = curDeviceUser === 'thinh' ? 'Thịnh' : 'Bu';
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    const newNote = {
-      id: 'note-' + Date.now(),
-      time: timeStr,
-      content: input.value.trim(),
-      driver: curDriverName,
-      date: this.getTodayInfo().dateStr,
-      type: 'info',
-      tagColor: curDriverName === 'Thịnh' ? '#0C7247' : '#1971C2'
-    };
-
-    if (!this.data.notes) this.data.notes = [];
-    this.data.notes.unshift(newNote);
-    this.saveState();
-    this.renderNotes();
-    input.value = '';
-    this.showToast('Đã lưu ghi chú mới!');
-
-    if (window.grabSync) window.grabSync.broadcast('ADD_NOTE', { note: newNote });
-  }
-
-  // ===================================================
-  // 5. RENDER HÌNH ẢNH CHỐT SỔ (PHẦN 8)
-  // ===================================================
-  renderGallery() {
-    const grid = document.getElementById('galleryGrid');
-    if (!grid) return;
-
-    let html = '';
-    (this.data.closingImages || []).forEach(img => {
-      const graphicBox = this.generateGraphicPreview(img.previewType, img.customDataUrl);
-      html += `
-        <div class="gallery-card" onclick="app.openLightboxImage('${img.id}')" title="Bấm để xem/xóa ảnh">
-          <div class="gallery-preview-box">
-            ${graphicBox}
-          </div>
-          <div class="gallery-info">
-            <span class="gallery-title">${img.title}</span>
-            <span class="gallery-time">${img.time}</span>
-          </div>
-        </div>
-      `;
-    });
-
-    html += `
-      <div class="add-photo-card" onclick="app.openModal('imageModal')">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-        <span>Thêm ảnh</span>
-      </div>
-    `;
-
-    grid.innerHTML = html;
-  }
-
-  generateGraphicPreview(type, customUrl) {
-    if (customUrl) {
-      return `<img src="${customUrl}" style="width: 100%; height: 100%; object-fit: cover;" alt="preview">`;
-    }
-
-    switch (type) {
-      case 'app_summary':
-        return `
-          <div style="width: 100%; height: 100%; background: #0E7444; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px;">
-            <div style="font-weight: 700; color: #FFF; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 4px;">GrabDriver Thu Nhập</div>
-            <div style="text-align: center;">
-              <div style="font-size: 16px; font-weight: 800; color: #86EFAC;">620.000đ</div>
-              <div style="font-size: 10px; color: #DCFCE7;">12 chuyến hoàn thành</div>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-size: 9px; color: #BBF7D0;">
-              <span>TM: 320k</span>
-              <span>CK: 300k</span>
-            </div>
-          </div>
-        `;
-      case 'bank_transfer':
-        return `
-          <div style="width: 100%; height: 100%; background: #064E3B; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center;">
-            <div style="width: 24px; height: 24px; border-radius: 50%; background: #10B981; display: flex; align-items: center; justify-content: center; color: #FFF; font-weight: 800; font-size: 13px;">✓</div>
-            <div style="font-size: 10px; color: #A7F3D0;">Chuyển khoản thành công</div>
-            <div style="font-size: 15px; font-weight: 800; color: #FFF;">+300.000đ</div>
-            <div style="font-size: 9px; color: #6EE7B7;">Nội dung: Grab Bu</div>
-          </div>
-        `;
-      case 'fuel_pump':
-        return `
-          <div style="width: 100%; height: 100%; background: #1E293B; padding: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid #334155;">
-            <div style="background: #0284C7; color: #FFF; font-size: 9px; padding: 2px 6px; border-radius: 3px; margin-bottom: 4px;">PETROLIMEX</div>
-            <div style="background: #0F172A; border: 1px solid #475569; padding: 4px 10px; border-radius: 4px; color: #38BDF8; font-family: monospace; font-size: 14px; font-weight: 700;">
-              100.000 Đ
-            </div>
-            <div style="font-size: 9px; color: #94A3B8; margin-top: 4px;">RON 95-III • 4.12 L</div>
-          </div>
-        `;
-      case 'odometer':
-        return `
-          <div style="width: 100%; height: 100%; background: #0B0F19; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-            <div style="font-size: 10px; color: #F59E0B; margin-bottom: 4px;">● AIR BLADE 125</div>
-            <div style="display: flex; align-items: baseline; gap: 4px;">
-              <span style="font-size: 8px; color: #64748B;">ODO</span>
-              <span style="font-size: 18px; font-weight: 800; color: #F8FAFC; font-family: monospace;">4523</span>
-              <span style="font-size: 9px; color: #94A3B8;">km</span>
-            </div>
-            <div style="font-size: 8px; color: #10B981; margin-top: 2px;">Bình xăng: 85%</div>
-          </div>
-        `;
-      case 'receipt':
-        return `
-          <div style="width: 100%; height: 100%; background: #F8FAFC; color: #1E293B; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; border: 1px dashed #94A3B8; font-size: 9px;">
-            <div style="text-align: center; font-weight: 700; border-bottom: 1px solid #CBD5E1; padding-bottom: 2px;">TIỆM SỬA XE QUANG</div>
-            <div>
-              <div>1. Vá vỏ bánh sau: 20.000đ</div>
-              <div>2. Tăng xích xe: 10.000đ</div>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-weight: 700; border-top: 1px solid #CBD5E1; padding-top: 2px;">
-              <span>Tổng:</span>
-              <span>30.000đ</span>
-            </div>
-          </div>
-        `;
-      default:
-        return `<div style="color: #94A3B8; font-size: 12px; display: flex; align-items: center; justify-content: center; height: 100%;">Chứng từ hình ảnh</div>`;
-    }
-  }
-
-  handleImgCategoryChange(select) {
-    const fileBox = document.getElementById('fileUploadContainer');
-    if (select.value === 'custom_file') {
-      fileBox.style.display = 'block';
-    } else {
-      fileBox.style.display = 'none';
-    }
-  }
-
-  handleSaveImage(e) {
-    e.preventDefault();
-    const title = document.getElementById('imgTitleInput').value || 'Ảnh chứng từ';
-    const time = document.getElementById('imgTimeInput').value || '21:00';
-    const cat = document.getElementById('imgCategorySelect').value;
-    const fileInput = document.getElementById('imgFileInput');
-
-    const saveAndClose = (dataUrl = null) => {
-      const newImg = {
-        id: 'img-' + Date.now(),
-        title: title + ` ${time}`,
-        time,
-        category: cat,
-        description: title,
-        previewType: cat,
-        customDataUrl: dataUrl
+      // Chọn tài khoản: Ngân hàng hoặc Tiền mặt
+      const targetName = this.selectedAccount || "Ngân hàng";
+      const targetAcc = this.data.wallets.accounts.find(a => a.name === targetName) || this.data.wallets.accounts[0];
+
+      const newTx = {
+        id: 'tx-' + Date.now(),
+        title: note,
+        category: this.selectedCategory,
+        date: dateDisplay,
+        time: timeVal,
+        isoDate: dateVal,
+        type: this.currentAddType,
+        amount: amount,
+        account: targetAcc ? targetAcc.name : "Ngân hàng",
+        user: this.data.user.name || "Người dùng",
+        icon: this.selectedCatIcon || (this.currentAddType === 'income' ? 'arrow-down-left' : 'utensils')
       };
-      if (!this.data.closingImages) this.data.closingImages = [];
-      this.data.closingImages.unshift(newImg);
-      this.saveState();
-      this.renderGallery();
-      this.closeModal('imageModal');
-      if (e && e.target && typeof e.target.reset === 'function') e.target.reset();
-      this.showToast('Đã lưu ảnh chứng từ chốt sổ!');
-    };
 
-    if (cat === 'custom_file' && fileInput.files && fileInput.files[0]) {
-      const reader = new FileReader();
-      reader.onload = (ev) => saveAndClose(ev.target.result);
-      reader.readAsDataURL(fileInput.files[0]);
-    } else {
-      saveAndClose();
-    }
-  }
+      // Thêm vào danh sách giao dịch
+      if (!this.data.transactions) this.data.transactions = [];
+      this.data.transactions.unshift(newTx);
 
-  openLightboxImage(imgId) {
-    const img = (this.data.closingImages || []).find(i => i.id === imgId);
-    if (!img) return;
-
-    this.activeLightboxImgId = imgId;
-    const modal = document.getElementById('photoLightbox');
-    const title = document.getElementById('lightboxTitle');
-    const content = document.getElementById('lightboxContent');
-    const caption = document.getElementById('lightboxCaption');
-
-    title.textContent = img.title;
-    caption.textContent = `${img.description} • Thời gian: ${img.time}`;
-    content.innerHTML = `<div style="width: 320px; height: 380px; max-width: 90%; border-radius: 12px; overflow: hidden;">${this.generateGraphicPreview(img.previewType, img.customDataUrl)}</div>`;
-    modal.classList.add('active');
-  }
-
-  openLightboxGraphic(type, titleText) {
-    this.activeLightboxImgId = null;
-    const modal = document.getElementById('photoLightbox');
-    const title = document.getElementById('lightboxTitle');
-    const content = document.getElementById('lightboxContent');
-    const caption = document.getElementById('lightboxCaption');
-
-    title.textContent = titleText;
-    caption.textContent = 'Chứng từ hình ảnh kèm ghi chú';
-    content.innerHTML = `<div style="width: 300px; height: 340px; border-radius: 12px; overflow: hidden;">${this.generateGraphicPreview(type)}</div>`;
-    modal.classList.add('active');
-  }
-
-  deleteCurrentLightboxImage() {
-    if (!this.activeLightboxImgId) {
-      this.showToast('Không có ảnh nào đang chọn để xóa!');
-      return;
-    }
-    if (!confirm('Bạn có chắc chắn muốn xóa ảnh chứng từ này không?')) return;
-
-    this.data.closingImages = (this.data.closingImages || []).filter(i => i.id !== this.activeLightboxImgId);
-    this.saveState();
-    this.renderGallery();
-    this.closeLightbox();
-    this.showToast('🗑️ Đã xóa ảnh chứng từ!');
-  }
-
-  closeLightbox() {
-    const modal = document.getElementById('photoLightbox');
-    if (modal) modal.classList.remove('active');
-  }
-
-  // ===================================================
-  // 6. RENDER BÁO CÁO (PHẦN 11) - TÍCH HỢP CHART.JS
-  // ===================================================
-  renderReports() {
-    // Cập nhật số liệu text báo cáo
-    const setSafe = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-
-    setSafe('repOverviewRevenue', this.formatMoney(this.data.incomeOverview.total));
-    setSafe('repOverviewCash', this.formatMoney(this.data.incomeOverview.cash));
-    setSafe('repOverviewTransfer', `🏦 CK: ${this.formatMoney(this.data.incomeOverview.transfer)}`);
-    setSafe('repOverviewTrips', `🚗 ${this.data.incomeOverview.totalTrips} chuyến`);
-
-    setSafe('repThinhAmount', this.formatMoney(this.data.incomeOverview.thinh.total));
-    setSafe('repThinhCash', this.formatMoney(this.data.incomeOverview.thinh.cash));
-    setSafe('repThinhTransfer', this.formatMoney(this.data.incomeOverview.thinh.transfer));
-    setSafe('repThinhTrips', this.data.incomeOverview.thinh.trips);
-    setSafe('repThinhHours', this.calculateDriverHours('thinh'));
-
-    setSafe('repBuAmount', this.formatMoney(this.data.incomeOverview.bu.total));
-    setSafe('repBuCash', this.formatMoney(this.data.incomeOverview.bu.cash));
-    setSafe('repBuTransfer', this.formatMoney(this.data.incomeOverview.bu.transfer));
-    setSafe('repBuTrips', this.data.incomeOverview.bu.trips);
-    setSafe('repBuHours', this.calculateDriverHours('bu'));
-
-    // Gọi vẽ biểu đồ Chart.js
-    this.renderCharts();
-  }
-
-  renderCharts() {
-    if (typeof Chart === 'undefined') return;
-
-    // 1. Biểu đồ cột: So sánh doanh thu Thịnh vs Bu theo ngày
-    const barCanvas = document.getElementById('chartRevenueComparison');
-    if (barCanvas) {
-      const days = (this.data.reports && this.data.reports.chartDays) || [
-        { label: "09/09", thinh: 0, bu: 0 },
-        { label: "10/09", thinh: 0, bu: 0 },
-        { label: "11/09", thinh: 0, bu: 0 },
-        { label: "12/09", thinh: 0, bu: 0 }
-      ];
-
-      const labels = days.map(d => d.label || d.date);
-      const dataThinh = days.map(d => d.thinh || 0);
-      const dataBu = days.map(d => d.bu || 0);
-
-      if (this.chartRevenue) {
-        this.chartRevenue.destroy();
+      // Cập nhật số dư ví cụ thể
+      if (targetAcc) {
+        if (this.currentAddType === 'income') {
+          targetAcc.balance += amount;
+        } else {
+          targetAcc.balance -= amount;
+        }
       }
 
+      // Thêm vào todayExpenses nếu là chi tiêu hôm nay
+      const todayIso = this.getLocalDateString();
+      if (this.currentAddType === 'expense' && (dateVal === todayIso || dateVal === '2026-09-20')) {
+        if (!this.data.todayExpenses) this.data.todayExpenses = [];
+        this.data.todayExpenses.unshift({
+          id: 'te-' + Date.now(),
+          title: note,
+          amount: amount,
+          icon: this.selectedCatIcon || 'shopping-bag',
+          color: '#EF4444',
+          bg: '#FEE2E2'
+        });
+      }
+
+      // Tính toán lại toàn bộ số dư và chỉ số đồng bộ (Single Source of Truth)
+      this.recalculateBalances();
+
+      this.saveData();
+
+      // Đồng bộ độc lập từng Document lên Firestore Subcollection & Leaderboard
+      if (window.grabSync) {
+        if (typeof window.grabSync.writeTransactionDoc === 'function') {
+          window.grabSync.writeTransactionDoc(newTx);
+        }
+        if (this.currentAddType === 'income' && typeof window.grabSync.syncLeaderboardEntry === 'function') {
+          window.grabSync.syncLeaderboardEntry('total_income', this.data.overview.monthlyIncome, this.data.ranking?.hidePersonal, this.data.user?.name);
+        }
+      }
+
+      this.renderAll();
+      this.showToast(`Đã thêm giao dịch ${this.formatVND(amount)}!`);
+
+      // Reset input
+      if (amtInput) amtInput.value = '';
+      this.goBack();
+    } finally {
+      this.isSubmittingTx = false;
+    }
+  }
+
+  // ===================================================
+  // 5. RANKING
+  // ===================================================
+  renderRanking() {
+    const container = document.getElementById('rankingListContainer');
+    if (!container) return;
+
+    // Cập nhật số tiền ranking người dùng theo đúng metric đã chọn (total_income hoặc net_income)
+    if (this.data.ranking && this.data.ranking.leaderboard && this.data.ranking.leaderboard[0]) {
+      const metric = this.data.ranking.metric || 'total_income';
+      const rankVal = (metric === 'net_income') ? this.data.overview.monthlySavings : this.data.overview.monthlyIncome;
+      this.data.ranking.leaderboard[0].amount = Math.max(0, rankVal || 0);
+    }
+
+    const list = this.data.ranking.leaderboard || [];
+
+    container.innerHTML = list.map((item, idx) => {
+      const isTop1 = item.rank === 1;
+      const isTop2 = item.rank === 2;
+      const isTop3 = item.rank === 3;
+      const isCurrent = item.isCurrentUser;
+
+      let badge = `<span class="rank-number-normal">#${item.rank}</span>`;
+      if (isTop1) badge = `<span class="rank-badge-podium">🥇</span>`;
+      else if (isTop2) badge = `<span class="rank-badge-podium">🥈</span>`;
+      else if (isTop3) badge = `<span class="rank-badge-podium">🥉</span>`;
+
+      return `
+        <div class="ranking-card-item ${isCurrent ? 'current-user' : ''}">
+          <div class="ranking-left">
+            ${badge}
+            <img src="${item.avatar}" class="rank-avatar">
+            <div>
+              <div class="rank-user-name">${this.data.ranking.hidePersonal && isCurrent ? 'Bạn (Ẩn danh)' : item.name}</div>
+              ${isCurrent ? `<span class="rank-user-tag">Bạn đang đứng #${item.rank}</span>` : ''}
+            </div>
+          </div>
+          <div class="rank-right">
+            <div class="rank-amount">${this.formatVND(item.amount)}</div>
+            <div class="rank-growth">+${item.growth}%</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const alertText = document.getElementById('rankAlertText');
+    if (alertText) {
+      if (list.length <= 1) {
+        alertText.textContent = "Bạn đang dẫn đầu bảng xếp hạng cá nhân! 🎉";
+      } else {
+        alertText.textContent = "Bảng xếp hạng đang cập nhật.";
+      }
+    }
+
+    this.setupIcons();
+  }
+
+  setRankingMetric(metric, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.data.ranking.metric = metric;
+    this.recalculateBalances();
+    this.saveData();
+    this.renderRanking();
+    this.showToast(`Xếp hạng theo ${tabEl.textContent}`);
+  }
+
+  setRankingPeriod(period, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.data.ranking.period = period;
+    this.recalculateBalances();
+    this.saveData();
+    this.renderRanking();
+    this.showToast(`Kỳ: ${tabEl.textContent}`);
+  }
+
+  toggleRankPrivacy(checked) {
+    this.data.ranking.hidePersonal = checked;
+    this.saveData();
+    this.renderRanking();
+    this.showToast(checked ? 'Đã ẩn thông tin cá nhân trên Ranking' : 'Đã hiển thị thông tin');
+  }
+
+  // ===================================================
+  // 6 & 7. NHÓM & PHÂN TÍCH NHÓM
+  // ===================================================
+  renderGroups() {
+    const listEl = document.getElementById('groupsListMenu');
+    if (listEl) {
+      if (!this.data.groups.list || this.data.groups.list.length === 0) {
+        listEl.innerHTML = `
+          <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 13px;">
+            Chưa có nhóm nào khác.
+          </div>
+        `;
+      } else {
+        listEl.innerHTML = this.data.groups.list.map(grp => `
+          <div class="menu-list-item" onclick="app.navTo('screen-group-detail')">
+            <div class="menu-item-left">
+              <div class="category-icon-circle" style="background: ${grp.bg}; color: ${grp.color};">
+                <i data-lucide="${grp.icon}" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">${grp.name}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${grp.memberCount} thành viên</div>
+              </div>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Cập nhật số liệu nhóm chính
+    const feat = this.data.groups.featured;
+    if (feat) {
+      const nameEl = document.getElementById('featuredGroupName');
+      if (nameEl) nameEl.textContent = feat.name;
+      const countEl = document.getElementById('featuredGroupCount');
+      if (countEl) countEl.textContent = `${feat.memberCount} thành viên`;
+      const incEl = document.getElementById('grpTotalInc');
+      if (incEl) incEl.textContent = this.formatVND(feat.totalIncome);
+      const expEl = document.getElementById('grpTotalExp');
+      if (expEl) expEl.textContent = this.formatVND(feat.totalExpense);
+      const savEl = document.getElementById('grpTotalSav');
+      if (savEl) savEl.textContent = this.formatVND(feat.savings);
+
+      // Render Group Avatar Stack
+      const avatarWrap = document.getElementById('featuredGroupAvatars');
+      if (avatarWrap) {
+        avatarWrap.innerHTML = (feat.members || [this.data.user.avatar]).map(av => `
+          <img src="${av}" class="avatar-stack-item">
+        `).join('');
+      }
+    }
+
+    // Cập nhật banner phân tích nhóm
+    const detail = this.data.groups.detail || {};
+    const dName = document.getElementById('grpDetailBannerName');
+    if (dName) dName.textContent = detail.name || 'Gia đình';
+    const dCount = document.getElementById('grpDetailBannerCount');
+    if (dCount) dCount.textContent = `${detail.memberCount || 1} thành viên`;
+    const dInc = document.getElementById('grpDetailIncome');
+    if (dInc) dInc.textContent = this.formatVND(detail.totalIncome || 0);
+    const dExp = document.getElementById('grpDetailExpense');
+    if (dExp) dExp.textContent = this.formatVND(detail.totalExpense || 0);
+    const dSav = document.getElementById('grpDetailSavings');
+    if (dSav) dSav.textContent = this.formatVND(detail.savings || 0);
+
+    // Render Group Contributions
+    const contribEl = document.getElementById('groupMembersContribList');
+    if (contribEl) {
+      contribEl.innerHTML = this.data.groups.detail.membersContribution.map(m => `
+        <div class="member-contrib-item">
+          <img src="${m.avatar}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">
+          <span class="member-contrib-name">${m.name}</span>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width: ${m.percent}%;"></div>
+          </div>
+          <div class="member-contrib-right">
+            <span class="member-contrib-pct">${m.percent}%</span>
+            <span class="member-contrib-val">${this.formatVND(m.amount)}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    this.setupIcons();
+  }
+
+  setGroupPeriod(period, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.showToast(`Phân tích nhóm theo ${tabEl.textContent}`);
+  }
+
+  // ===================================================
+  // 8. NGÂN SÁCH
+  // ===================================================
+  renderBudgets() {
+    const listEl = document.getElementById('budgetItemsList');
+    if (!listEl) return;
+
+    listEl.innerHTML = this.data.budgets.map(b => `
+      <div class="budget-card-item">
+        <div class="budget-card-top">
+          <div class="budget-card-left">
+            <div class="category-icon-circle" style="background: ${b.bg}; color: ${b.color}; width: 34px; height: 34px;">
+              <i data-lucide="${b.icon}" style="width: 16px; height: 16px;"></i>
+            </div>
+            <div>
+              <div class="budget-title">${b.title}</div>
+              <div class="budget-amounts">${this.formatVND(b.used)} / ${this.formatVND(b.target)}</div>
+            </div>
+          </div>
+          <span class="budget-pct-badge">${b.percent}%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width: ${b.percent}%; background: ${b.isWarning ? '#F59E0B' : '#10B981'};"></div>
+        </div>
+      </div>
+    `).join('');
+
+    // Hiển thị banner cảnh báo chỉ khi có danh mục vượt 90%
+    const warningEl = document.getElementById('budgetWarningBanner');
+    const warningItem = this.data.budgets.find(b => b.isWarning || b.percent >= 90);
+    if (warningEl) {
+      if (warningItem) {
+        warningEl.style.display = 'flex';
+        const txt = document.getElementById('budgetWarningText');
+        if (txt) txt.textContent = `Bạn đã sử dụng ${warningItem.percent}% ngân sách ${warningItem.title}!`;
+      } else {
+        warningEl.style.display = 'none';
+      }
+    }
+
+    this.setupIcons();
+  }
+
+  // ===================================================
+  // 9. MỤC TIÊU TÀI CHÍNH
+  // ===================================================
+  renderGoals() {
+    const listEl = document.getElementById('goalsCardsList');
+    if (!listEl) return;
+
+    if (!this.data.goals || this.data.goals.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align: center; padding: 40px 16px; color: var(--text-muted); font-size: 13px;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: #F1F5F9; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+            <i data-lucide="target" style="width: 24px; height: 24px; color: var(--text-muted);"></i>
+          </div>
+          <div style="font-weight: 700; color: var(--text-main); margin-bottom: 4px;">Chưa có mục tiêu tài chính</div>
+          <div>Bấm <b>Tạo mục tiêu mới</b> để bắt đầu tích lũy!</div>
+        </div>
+      `;
+      this.setupIcons();
+      return;
+    }
+
+    listEl.innerHTML = this.data.goals.map((g, idx) => `
+      <div class="goal-card-item">
+        <div class="goal-card-top">
+          <div class="goal-left-info">
+            <div class="goal-icon-box">
+              <i data-lucide="${g.icon}" style="width: 20px; height: 20px; color: ${g.color};"></i>
+            </div>
+            <div>
+              <div class="goal-title">${g.title}</div>
+              <div class="goal-amounts-text">${this.formatVND(g.current)} / ${this.formatVND(g.target)}</div>
+            </div>
+          </div>
+          <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">${g.percent}%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width: ${g.percent}%; background: ${g.color};"></div>
+        </div>
+        <button class="btn-add-fund" onclick="app.addFundToGoal(${idx})">+ Thêm tiền</button>
+      </div>
+    `).join('');
+
+    this.setupIcons();
+  }
+
+  addFundToGoal(index) {
+    const goal = this.data.goals && this.data.goals[index];
+    if (!goal) return;
+    const addAmt = 500000;
+
+    // Tìm ví có đủ số dư để trích tiền tích lũy
+    const accounts = this.data.wallets?.accounts || [];
+    const sourceAcc = accounts.find(a => (a.balance || 0) >= addAmt) || accounts[0];
+
+    if (!sourceAcc || (sourceAcc.balance || 0) < addAmt) {
+      this.showToast(`Số dư ví không đủ 500.000đ để tích lũy!`);
+      return;
+    }
+
+    // Trừ số dư ví thực tế
+    sourceAcc.balance -= addAmt;
+    goal.current = (goal.current || 0) + addAmt;
+    goal.percent = goal.target > 0 ? Math.min(100, Math.round((goal.current / goal.target) * 100)) : 100;
+
+    // Ghi nhận giao dịch tài chính thật
+    const now = new Date();
+    const dayStr = String(now.getDate()).padStart(2, '0');
+    const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+    const dateDisplay = `${dayStr}/${monthStr}/${now.getFullYear()}`;
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const isoDate = `${now.getFullYear()}-${monthStr}-${dayStr}`;
+
+    const tx = {
+      id: 'tx-' + Date.now(),
+      title: `Tích lũy: ${goal.title}`,
+      category: 'Mục tiêu',
+      date: dateDisplay,
+      time: timeStr,
+      isoDate: isoDate,
+      type: 'expense',
+      amount: addAmt,
+      account: sourceAcc.name,
+      user: this.data.user.name || "Người dùng",
+      icon: 'target'
+    };
+
+    if (!this.data.transactions) this.data.transactions = [];
+    this.data.transactions.unshift(tx);
+
+    this.recalculateBalances();
+    this.saveData();
+    this.renderAll();
+    this.showToast(`Đã trích ${this.formatVND(addAmt)} từ ${sourceAcc.name} vào mục tiêu ${goal.title}!`);
+  }
+
+  openNewGoalModal() {
+    const modal = document.getElementById('newGoalModal');
+    if (modal) modal.classList.add('show');
+  }
+
+  closeNewGoalModal() {
+    const modal = document.getElementById('newGoalModal');
+    if (modal) modal.classList.remove('show');
+  }
+
+  submitNewGoal() {
+    const titleInput = document.getElementById('newGoalTitleInput');
+    const targetInput = document.getElementById('newGoalTargetInput');
+    const currentInput = document.getElementById('newGoalCurrentInput');
+
+    const title = titleInput?.value.trim();
+    const target = parseInt(targetInput?.value, 10) || 0;
+    const current = parseInt(currentInput?.value, 10) || 0;
+
+    if (!title || target <= 0) {
+      this.showToast('Vui lòng nhập tên và số tiền mục tiêu!');
+      return;
+    }
+
+    const pct = Math.min(100, Math.round((current / target) * 100));
+
+    this.data.goals.push({
+      id: 'gl-' + Date.now(),
+      title: title,
+      icon: "target",
+      current: current,
+      target: target,
+      percent: pct,
+      color: "#10B981"
+    });
+
+    this.saveData();
+    this.renderGoals();
+    this.closeNewGoalModal();
+    this.showToast(`Đã tạo mục tiêu "${title}"!`);
+
+    if (titleInput) titleInput.value = '';
+    if (targetInput) targetInput.value = '';
+    if (currentInput) currentInput.value = '';
+  }
+
+  // ===================================================
+  // 10. ANALYTICS (CHARTS)
+  // ===================================================
+  renderAnalyticsCharts() {
+    // 1. Bar Chart Thu nhập vs Chi tiêu
+    const barCanvas = document.getElementById('analyticsBarChart');
+    if (barCanvas) {
       const ctx = barCanvas.getContext('2d');
-      this.chartRevenue = new Chart(ctx, {
+      if (this.analyticsBar) this.analyticsBar.destroy();
+
+      const txs = this.data.transactions || [];
+      const mInc = [0, 0, 0, 0, 0, 0]; // T7, T8, T9, T10, T11, T12
+      const mExp = [0, 0, 0, 0, 0, 0];
+      txs.forEach(tx => {
+        if (!tx.isoDate) return;
+        const parts = tx.isoDate.split('-');
+        if (parts.length >= 2) {
+          const m = parseInt(parts[1], 10);
+          if (m >= 7 && m <= 12) {
+            const idx = m - 7;
+            if (tx.type === 'income') mInc[idx] += (Number(tx.amount) || 0);
+            if (tx.type === 'expense') mExp[idx] += (Number(tx.amount) || 0);
+          }
+        }
+      });
+
+      this.analyticsBar = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: labels,
+          labels: ['T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
           datasets: [
             {
-              label: 'Thịnh',
-              data: dataThinh,
-              backgroundColor: '#0C7247',
-              borderRadius: 6,
-              barPercentage: 0.65
+              label: 'Thu nhập',
+              data: mInc,
+              backgroundColor: '#10B981',
+              borderRadius: 6
             },
             {
-              label: 'Bu',
-              data: dataBu,
-              backgroundColor: '#1971C2',
-              borderRadius: 6,
-              barPercentage: 0.65
+              label: 'Chi tiêu',
+              data: mExp,
+              backgroundColor: '#EF4444',
+              borderRadius: 6
             }
           ]
         },
@@ -1460,64 +1432,55 @@ class GrabApp {
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: (context) => `${context.dataset.label}: ${this.formatMoney(context.raw)}`
+                label: (ctx) => `${ctx.dataset.label}: ${Number(ctx.raw).toLocaleString('vi-VN')}đ`
               }
             }
           },
           scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                callback: (val) => val >= 1000 ? (val / 1000) + 'k' : val,
-                font: { size: 10 }
-              },
-              grid: { color: 'rgba(0,0,0,0.05)' }
-            },
-            x: {
-              grid: { display: false },
-              ticks: { font: { size: 11, weight: 'bold' } }
-            }
+            x: { grid: { display: false } },
+            y: { display: false }
           }
         }
       });
     }
 
-    // 2. Biểu đồ tròn (Doughnut): Cơ cấu Tiền mặt & Chuyển khoản
-    const distCanvas = document.getElementById('chartPaymentDistribution');
-    if (distCanvas) {
-      const cash = (this.data.incomeOverview && this.data.incomeOverview.cash) || 0;
-      const transfer = (this.data.incomeOverview && this.data.incomeOverview.transfer) || 0;
-      const hasData = (cash + transfer) > 0;
+    // 2. Pie / Donut Chart Chi tiêu theo danh mục
+    const pieCanvas = document.getElementById('analyticsCategoryPie');
+    if (pieCanvas) {
+      const ctx = pieCanvas.getContext('2d');
+      if (this.analyticsPie) this.analyticsPie.destroy();
 
-      if (this.chartDist) {
-        this.chartDist.destroy();
-      }
+      const categoriesMap = {};
+      (this.data.transactions || []).filter(tx => tx.type === 'expense').forEach(tx => {
+        categoriesMap[tx.category] = (categoriesMap[tx.category] || 0) + tx.amount;
+      });
 
-      const ctxDist = distCanvas.getContext('2d');
-      this.chartDist = new Chart(ctxDist, {
+      const hasExpenses = Object.keys(categoriesMap).length > 0;
+      const catLabels = hasExpenses ? Object.keys(categoriesMap) : ['Chưa có chi tiêu'];
+      const catValues = hasExpenses ? Object.values(categoriesMap) : [1];
+      const catColors = hasExpenses ? ['#EF4444', '#F97316', '#EC4899', '#10B981', '#64748B'] : ['#CBD5E1'];
+
+      this.analyticsPie = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: ['Tiền mặt', 'Chuyển khoản'],
-          datasets: [{
-            data: hasData ? [cash, transfer] : [1, 1],
-            backgroundColor: hasData ? ['#10B981', '#3B82F6'] : ['#E2E8F0', '#CBD5E1'],
-            borderWidth: 2,
-            borderColor: '#FFFFFF'
-          }]
+          labels: catLabels,
+          datasets: [
+            {
+              data: catValues,
+              backgroundColor: catColors,
+              borderWidth: 2,
+              borderColor: '#FFFFFF'
+            }
+          ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '68%',
+          cutout: '62%',
           plugins: {
             legend: {
-              position: 'bottom',
-              labels: { font: { size: 11, weight: '600' }, boxWidth: 12 }
-            },
-            tooltip: {
-              callbacks: {
-                label: (context) => hasData ? `${context.label}: ${this.formatMoney(context.raw)}` : 'Chưa có doanh thu'
-              }
+              position: 'right',
+              labels: { boxWidth: 10, font: { size: 11, family: 'Plus Jakarta Sans' } }
             }
           }
         }
@@ -1525,889 +1488,549 @@ class GrabApp {
     }
   }
 
-  calculateDriverHours(driverId) {
-    let totalMinutes = 0;
-    (this.data.schedules || []).forEach(slot => {
-      const status = driverId === 'thinh' ? slot.thinhStatus : slot.buStatus;
-      if (status === 'completed') {
-        const parts = (slot.timeSlot || '').split(' - ');
-        if (parts.length === 2) {
-          const [startH, startM] = parts[0].split(':').map(Number);
-          let [endH, endM] = parts[1].split(':').map(Number);
-          if (endH === 0 && startH > 12) endH = 24;
-          const startTotal = startH * 60 + (startM || 0);
-          const endTotal = endH * 60 + (endM || 0);
-          const diff = endTotal - startTotal;
-          if (diff > 0) totalMinutes += diff;
+  setAnalyticsPeriod(period, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.showToast(`Biểu đồ theo ${tabEl.textContent}`);
+    this.renderAnalyticsCharts();
+  }
+
+  // ===================================================
+  // 11. NGUỒN THU NHẬP
+  // ===================================================
+  renderIncomeSources() {
+    const totEl = document.getElementById('incomeSourcesTotal');
+    if (totEl) totEl.textContent = this.formatVND(this.data.overview?.monthlyIncome || 0);
+    const badgeEl = document.getElementById('incomeSourcesBadge');
+    if (badgeEl) badgeEl.textContent = '+0%';
+
+    const listEl = document.getElementById('incomeSourcesList');
+    if (!listEl) return;
+
+    listEl.innerHTML = this.data.incomeSources.sources.map(s => `
+      <div style="padding: 10px 0; border-bottom: 1px solid var(--border-subtle);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="category-icon-circle" style="background: ${s.bg}; color: ${s.color}; width: 30px; height: 30px;">
+              <i data-lucide="${s.icon}" style="width: 15px; height: 15px;"></i>
+            </div>
+            <span style="font-size: 13px; font-weight: 700; color: var(--text-main);">${s.title}</span>
+          </div>
+          <div style="text-align: right;">
+            <span style="font-size: 13px; font-weight: 800; color: var(--text-main);">${this.formatVND(s.amount)}</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-left: 4px;">${s.percent}%</span>
+          </div>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width: ${s.percent}%; background: ${s.color};"></div>
+        </div>
+      </div>
+    `).join('');
+
+    this.renderIncomeSourcesPie();
+    this.setupIcons();
+  }
+
+  renderIncomeSourcesPie() {
+    const canvas = document.getElementById('incomeSourcesPie');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (this.incomePie) this.incomePie.destroy();
+
+    const incMap = {};
+    (this.data.transactions || []).filter(tx => tx.type === 'income').forEach(tx => {
+      incMap[tx.category] = (incMap[tx.category] || 0) + tx.amount;
+    });
+
+    const hasIncome = Object.keys(incMap).length > 0;
+    const incLabels = hasIncome ? Object.keys(incMap) : ['Chưa có thu nhập'];
+    const incValues = hasIncome ? Object.values(incMap) : [1];
+    const incColors = hasIncome ? ['#14B8A6', '#10B981', '#F97316', '#8B5CF6', '#94A3B8'] : ['#CBD5E1'];
+
+    this.incomePie = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: incLabels,
+        datasets: [
+          {
+            data: incValues,
+            backgroundColor: incColors,
+            borderWidth: 2,
+            borderColor: '#FFFFFF'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: { boxWidth: 10, font: { size: 10, family: 'Plus Jakarta Sans' } }
+          }
         }
       }
     });
-
-    if (totalMinutes === 0) return '0h 00p';
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    return `${h}h ${String(m).padStart(2, '0')}p`;
   }
 
   // ===================================================
-  // 7. RENDER CHỐT NGÀY & ĐỐI SOÁT (PHẦN 9 & 10)
+  // 12. TÀI KHOẢN / VÍ
   // ===================================================
-  renderClosing() {
-    const t = this.data.dailyClosing.thinh;
-    const b = this.data.dailyClosing.bu;
-    const setSafe = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-
-    // Luôn hiển thị ngày hôm nay theo thời gian thực
-    setSafe('closingDateLabel', this.getTodayInfo().displayStr);
-
-    setSafe('closeThinhTrips', t.trips);
-    setSafe('closeThinhRev', this.formatMoney(t.revenue));
-    setSafe('closeThinhCash', this.formatMoney(t.cash));
-    setSafe('closeThinhTransfer', this.formatMoney(t.transfer));
-    setSafe('closeThinhTip', this.formatMoney(t.tip));
-    setSafe('closeThinhFuel', '-' + this.formatMoney(t.fuelExpense));
-    setSafe('closeThinhOther', '-' + this.formatMoney(t.otherExpense));
-    setSafe('closeThinhNet', this.formatMoney(t.netIncome));
-
-    setSafe('closeBuTrips', b.trips);
-    setSafe('closeBuRev', this.formatMoney(b.revenue));
-    setSafe('closeBuCash', this.formatMoney(b.cash));
-    setSafe('closeBuTransfer', this.formatMoney(b.transfer));
-    setSafe('closeBuTip', this.formatMoney(b.tip));
-    setSafe('closeBuFuel', '-' + this.formatMoney(b.fuelExpense));
-    setSafe('closeBuOther', '-' + this.formatMoney(b.otherExpense));
-    setSafe('closeBuNet', this.formatMoney(b.netIncome));
-
-    // Thẻ đối soát bù trừ Spliit Engine
-    this.renderSpliitSettlement();
-  }
-
-  // ===================================================
-  // SPLIIT: ĐỐI SOÁT & QUYẾT TOÁN BÙ TRỪ TỰ ĐỘNG
-  // ===================================================
-  renderSpliitSettlement() {
-    const t = (this.data.dailyClosing && this.data.dailyClosing.thinh) || {};
-    const b = (this.data.dailyClosing && this.data.dailyClosing.bu) || {};
-    const setSafe = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-
-    setSafe('closeDoiSoatCashThinh', this.formatMoney(t.cash || 0));
-    setSafe('closeDoiSoatCashBu', this.formatMoney(b.cash || 0));
-
-    // Tính tổng chi phí xe dùng chung (chia 50-50)
-    let sharedExpense = 0;
-    ((this.data.vehicleMaintenance && this.data.vehicleMaintenance.logs) || []).forEach(log => {
-      sharedExpense += (parseInt(log.cost) || 0);
-    });
-    sharedExpense += ((t.otherExpense || 0) + (b.otherExpense || 0));
-
-    setSafe('spliitSharedExpense', this.formatMoney(sharedExpense) + ` (Mỗi người: ${this.formatMoney(Math.round(sharedExpense / 2))})`);
-
-    // Spliit Formula:
-    // Chênh lệch giữa Tiền mặt đang giữ vs Thu nhập ròng được hưởng
-    const diffThinh = (t.cash || 0) - (t.netIncome || 0); // kept for reference, formula below uses sharedExpense
-    const ketLuanEl = document.getElementById('closeDoiSoatKetLuan');
-    const statusBadge = document.getElementById('spliitStatusBadge');
-
-    const isSettled = this.data.settlement && this.data.settlement.isSettled;
-
-    if (isSettled) {
-      if (statusBadge) {
-        statusBadge.textContent = 'Đã sòng phẳng 🟢';
-        statusBadge.className = 'badge-status completed dot';
-      }
-      if (ketLuanEl) {
-        ketLuanEl.innerHTML = `✓ Hai bên đã chuyển khoản quyết toán xong! (Sòng phẳng 0đ)`;
-        ketLuanEl.style.color = '#0C7247';
-      }
-      return;
+  renderWallets() {
+    const totEl = document.getElementById('walletsTotalBalance');
+    if (totEl) {
+      const sum = (this.data.wallets?.accounts || []).reduce((acc, a) => acc + (a.balance || 0), 0);
+      totEl.textContent = this.formatVND(sum);
     }
 
-    if (statusBadge) {
-      statusBadge.textContent = 'Chờ quyết toán 🟡';
-      statusBadge.className = 'badge-status available dot';
-    }
-
-    if (ketLuanEl) {
-      // Tính chênh lệch: Thịnh đang giữ tiền mặt vs phần thu nhập ròng + chi phí chung 50-50
-      const halfShared = Math.round(sharedExpense / 2);
-      // Thịnh được nhận: netIncome - halfShared (do đã chia chi phí xe 50-50)
-      const thinhOwed = (t.netIncome || 0) - halfShared;
-      const buOwed    = (b.netIncome || 0) - halfShared;
-      // Thịnh đang giữ tiền mặt của mình
-      const thinhHolds = (t.cash || 0);
-      const diff = thinhHolds - thinhOwed;
-
-      if (diff === 0) {
-        ketLuanEl.innerHTML = `👉 Hai bên đối soát sòng phẳng (Không ai nợ ai)!`;
-        ketLuanEl.style.color = '#0C7247';
-      } else if (diff > 0) {
-        ketLuanEl.innerHTML = `👉 <strong>THỊNH</strong> cần chuyển khoản trả <strong>BU</strong>: <span style="color: #E03131; font-size: 15px;">${this.formatMoney(diff)}</span>`;
-      } else {
-        ketLuanEl.innerHTML = `👉 <strong>BU</strong> cần chuyển khoản trả <strong>THỊNH</strong>: <span style="color: #0C7247; font-size: 15px;">${this.formatMoney(Math.abs(diff))}</span>`;
-      }
-    }
-  }
-
-  handleSettleUp() {
-    if (!this.data.settlement) this.data.settlement = {};
-    this.data.settlement.isSettled = true;
-    this.data.settlement.lastSettledDate = new Date().toLocaleDateString('vi-VN');
-    if (!this.data.settlement.history) this.data.settlement.history = [];
-    this.data.settlement.history.unshift({
-      id: 'settle-' + Date.now(),
-      date: new Date().toLocaleString('vi-VN'),
-      note: 'Xác nhận chuyển khoản quyết toán bù trừ sòng phẳng'
-    });
-
-    this.saveState();
-    this.renderSpliitSettlement();
-    this.showToast('✓ Đã xác nhận quyết toán bù trừ Spliit thành công!');
-    if (window.grabSync) window.grabSync.broadcast('SETTLE_UP', { settledDate: this.data.settlement.lastSettledDate });
-  }
-
-  // ===================================================
-  // LUBELOGGER: QUẢN LÝ & BẢO DƯỠNG XE AIR BLADE
-  // ===================================================
-  renderMaintenanceWidget() {
-    const vm = this.data.vehicleMaintenance || {};
-    const curOdo = parseInt(vm.currentOdo) || 0;
-    const oilEngineInterval = parseInt(vm.oilChangeInterval) || 1500;
-    const lastOilEngine = parseInt(vm.lastOilChangeOdo) || 0;
-    const gearOilInterval = parseInt(vm.gearOilInterval) || 5000;
-    const lastGearOil = parseInt(vm.lastGearOilOdo) || 0;
-
-    // Nhớt máy
-    const runEngine = Math.max(0, curOdo - lastOilEngine);
-    const remEngine = oilEngineInterval - runEngine;
-    const pctEngine = Math.min(100, Math.max(0, Math.round((runEngine / oilEngineInterval) * 100)));
-
-    // Nhớt láp
-    const runGear = Math.max(0, curOdo - lastGearOil);
-    const remGear = gearOilInterval - runGear;
-    const pctGear = Math.min(100, Math.max(0, Math.round((runGear / gearOilInterval) * 100)));
-
-    const getColor = (rem) => {
-      if (rem <= 0) return '#E03131';
-      if (rem <= 200) return '#F59F00';
-      return '#10B981';
-    };
-
-    const getBadge = (rem) => {
-      if (rem <= 0) return '<span class="badge-status off dot">Quá hạn</span>';
-      if (rem <= 200) return '<span class="badge-status available dot">Sắp tới hạn</span>';
-      return '<span class="badge-status running dot">Tốt</span>';
-    };
-
-    // Update Dashboard Widget
-    const odoDisplay = document.getElementById('maintOdoDisplay');
-    const statusBadge = document.getElementById('maintStatusBadge');
-    const oilText = document.getElementById('maintOilText');
-    const oilBar = document.getElementById('maintOilBar');
-    const gearText = document.getElementById('maintGearOilText');
-    const gearBar = document.getElementById('maintGearOilBar');
-
-    if (odoDisplay) odoDisplay.textContent = `${curOdo.toLocaleString('vi-VN')} km`;
-    if (oilText) oilText.textContent = remEngine <= 0 ? `Quá ${Math.abs(remEngine)} km!` : `Còn ${remEngine} km`;
-    if (oilBar) {
-      oilBar.style.width = `${pctEngine}%`;
-      oilBar.style.backgroundColor = getColor(remEngine);
-    }
-    if (gearText) gearText.textContent = remGear <= 0 ? `Quá ${Math.abs(remGear)} km!` : `Còn ${remGear} km`;
-    if (gearBar) {
-      gearBar.style.width = `${pctGear}%`;
-      gearBar.style.backgroundColor = getColor(remGear);
-    }
-
-    if (statusBadge) {
-      if (remEngine <= 0 || remGear <= 0) {
-        statusBadge.textContent = 'Cần bảo dưỡng!';
-        statusBadge.className = 'badge-status off dot';
-      } else if (remEngine <= 200 || remGear <= 200) {
-        statusBadge.textContent = 'Sắp tới hạn';
-        statusBadge.className = 'badge-status available dot';
-      } else {
-        statusBadge.textContent = 'Xe chạy tốt';
-        statusBadge.className = 'badge-status running dot';
-      }
-    }
-
-    // Update inside Maintenance Modal
-    const modalOdo = document.getElementById('modalOdoCurrentDisplay');
-    const badgeOilEng = document.getElementById('badgeMaintOilEngine');
-    const textOilEng = document.getElementById('textMaintOilEngine');
-    const badgeOilGr = document.getElementById('badgeMaintOilGear');
-    const textOilGr = document.getElementById('textMaintOilGear');
-    const historyList = document.getElementById('maintHistoryList');
-
-    if (modalOdo) modalOdo.textContent = `${curOdo.toLocaleString('vi-VN')} km`;
-    if (badgeOilEng) badgeOilEng.innerHTML = getBadge(remEngine);
-    if (textOilEng) textOilEng.textContent = `Lần thay gần nhất: ${lastOilEngine.toLocaleString('vi-VN')} km (Đã chạy ${runEngine} km / ${oilEngineInterval} km)`;
-    if (badgeOilGr) badgeOilGr.innerHTML = getBadge(remGear);
-    if (textOilGr) textOilGr.textContent = `Lần thay gần nhất: ${lastGearOil.toLocaleString('vi-VN')} km (Đã chạy ${runGear} km / ${gearOilInterval} km)`;
-
-    if (historyList) {
-      const logs = vm.logs || [];
-      if (logs.length === 0) {
-        historyList.innerHTML = `<div style="text-align: center; color: #94A3B8; font-size: 11px; padding: 10px;">Chưa có lịch sử bảo dưỡng nào</div>`;
-      } else {
-        historyList.innerHTML = logs.map(l => `
-          <div class="maint-history-item">
-            <div>
-              <strong style="color: #1E293B;">${l.name}</strong>
-              <div style="color: #64748B; font-size: 10.5px;">${l.date} • ODO: ${l.odo || curOdo} km • ${l.paidBy === 'thinh' ? 'Thịnh trả' : 'Bu trả'}</div>
+    const gridEl = document.getElementById('walletsGrid2x2');
+    if (gridEl) {
+      gridEl.innerHTML = this.data.wallets.accounts.map(acc => `
+        <div class="account-card-box">
+          <div class="account-card-top">
+            <div class="category-icon-circle" style="background: ${acc.bg}; color: ${acc.color}; width: 30px; height: 30px;">
+              <i data-lucide="${acc.icon}" style="width: 15px; height: 15px;"></i>
             </div>
-            <div style="font-weight: 800; color: #E03131;">${this.formatMoney(l.cost || 0)}</div>
+            <span class="account-name-lbl">${acc.name}</span>
+          </div>
+          <div class="account-balance-val">${this.formatVND(acc.balance)}</div>
+        </div>
+      `).join('');
+    }
+
+    const recListEl = document.getElementById('walletsRecentTxList');
+    if (recListEl) {
+      if (!this.data.wallets.recentTransactions || this.data.wallets.recentTransactions.length === 0) {
+        recListEl.innerHTML = `
+          <div style="text-align: center; padding: 18px; color: var(--text-muted); font-size: 12px;">
+            Chưa có biến động số dư nào
+          </div>
+        `;
+      } else {
+        recListEl.innerHTML = this.data.wallets.recentTransactions.map(tx => `
+          <div class="expense-item-row">
+            <div class="expense-item-left">
+              <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${tx.account}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">${tx.date}</div>
+            </div>
+            <div style="font-size: 13px; font-weight: 800; color: ${tx.color};">
+              ${tx.type === 'income' ? '+' : '-'}${this.formatVND(tx.amount)}
+            </div>
           </div>
         `).join('');
       }
     }
+
+    this.setupIcons();
   }
 
-  openMaintenanceModal() {
-    const vm = this.data.vehicleMaintenance || {};
-    const inputOdo = document.getElementById('modalInputOdo');
-    if (inputOdo) inputOdo.value = vm.currentOdo || '';
-    this.renderMaintenanceWidget();
-    this.openModal('maintenanceModal');
-  }
+  openTransferModal() {
+    const fromSelect = document.getElementById('transferFromSelect');
+    const toSelect = document.getElementById('transferToSelect');
+    const accounts = this.data.wallets?.accounts || [];
 
-  handleUpdateOdo() {
-    const input = document.getElementById('modalInputOdo');
-    if (!input || !input.value) {
-      alert('Vui lòng nhập số ODO hợp lệ');
-      return;
+    if (fromSelect && accounts.length > 0) {
+      fromSelect.innerHTML = accounts.map(a => `
+        <option value="${this.escapeHtml(a.name)}">${this.escapeHtml(a.name)} (${this.formatVND(a.balance || 0)})</option>
+      `).join('');
     }
-    const val = parseInt(input.value);
-    if (val < 0) return;
+    if (toSelect && accounts.length > 0) {
+      toSelect.innerHTML = accounts.map((a, idx) => `
+        <option value="${this.escapeHtml(a.name)}" ${idx === 1 ? 'selected' : ''}>${this.escapeHtml(a.name)} (${this.formatVND(a.balance || 0)})</option>
+      `).join('');
+    }
 
-    if (!this.data.vehicleMaintenance) this.data.vehicleMaintenance = {};
-    this.data.vehicleMaintenance.currentOdo = val;
-    this.saveState();
-    this.renderMaintenanceWidget();
-    this.showToast(`✓ Đã cập nhật số ODO xe: ${val.toLocaleString('vi-VN')} km!`);
+    const modal = document.getElementById('transferModal');
+    if (modal) modal.classList.add('show');
   }
 
-  quickLogMaintenance(type) {
-    if (!this.data.vehicleMaintenance) this.data.vehicleMaintenance = {};
-    const curOdo = this.data.vehicleMaintenance.currentOdo || 0;
-    const nowStr = new Date().toLocaleDateString('vi-VN');
+  handleTransferFromChange() {
+    const fromVal = document.getElementById('transferFromSelect')?.value;
+    const toSelect = document.getElementById('transferToSelect');
+    if (toSelect && fromVal) {
+      toSelect.value = (fromVal === 'Ngân hàng') ? 'Tiền mặt' : 'Ngân hàng';
+    }
+  }
 
-    if (type === 'oil_engine') {
-      this.data.vehicleMaintenance.lastOilChangeOdo = curOdo;
-      if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
-      this.data.vehicleMaintenance.logs.unshift({
-        id: 'maint-' + Date.now(),
-        date: nowStr,
-        odo: curOdo,
-        type: 'oil_engine',
-        name: 'Thay nhớt máy Motul Scooter',
-        cost: 130000,
-        paidBy: this.data.vehicle.currentDriverId || 'thinh',
-        note: 'Ghi nhận nhanh tại mốc ' + curOdo + ' km'
+  closeTransferModal() {
+    const modal = document.getElementById('transferModal');
+    if (modal) modal.classList.remove('show');
+  }
+
+  executeTransfer() {
+    if (this.isSubmittingTx) return;
+    this.isSubmittingTx = true;
+
+    try {
+      const from = document.getElementById('transferFromSelect')?.value;
+      const to = document.getElementById('transferToSelect')?.value;
+      const amtInput = document.getElementById('transferAmountInput');
+      const amt = this.parseVND(amtInput?.value);
+
+      if (amt <= 0 || !Number.isFinite(amt) || amt > 1e15) {
+        this.showToast('Vui lòng nhập số tiền chuyển hợp lệ (> 0đ)!');
+        return;
+      }
+
+      if (from === to) {
+        this.showToast('Ví nguồn và ví đích không được trùng nhau!');
+        return;
+      }
+
+      const accFrom = (this.data.wallets?.accounts || []).find(a => a.name === from);
+      const accTo = (this.data.wallets?.accounts || []).find(a => a.name === to);
+
+      if (!accFrom || !accTo) {
+        this.showToast('Không tìm thấy tài khoản ví!');
+        return;
+      }
+
+      if ((accFrom.balance || 0) < amt) {
+        this.showToast(`Số dư ${from} không đủ (${this.formatVND(accFrom.balance)})!`);
+        return;
+      }
+
+      // Chuyển tiền nguyên tử giữa 2 ví
+      accFrom.balance -= amt;
+      accTo.balance += amt;
+
+      const now = new Date();
+      const dayStr = String(now.getDate()).padStart(2, '0');
+      const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+      const dateDisplay = `${dayStr}/${monthStr}/${now.getFullYear()}`;
+      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const isoDate = `${now.getFullYear()}-${monthStr}-${dayStr}`;
+
+      // Ghi nhận vào danh sách transactions chính
+      const transferTx = {
+        id: 'tx-' + Date.now(),
+        title: `Chuyển tiền: ${from} → ${to}`,
+        category: 'Chuyển khoản',
+        date: dateDisplay,
+        time: timeStr,
+        isoDate: isoDate,
+        type: 'transfer',
+        amount: amt,
+        account: `${from} → ${to}`,
+        user: this.data.user?.name || "Người dùng",
+        icon: 'repeat'
+      };
+
+      if (!this.data.transactions) this.data.transactions = [];
+      this.data.transactions.unshift(transferTx);
+
+      if (!this.data.wallets.recentTransactions) this.data.wallets.recentTransactions = [];
+      this.data.wallets.recentTransactions.unshift({
+        id: 'wt-' + Date.now(),
+        account: `${from} → ${to}`,
+        date: "Hôm nay",
+        amount: amt,
+        type: "transfer",
+        color: "#3B82F6"
       });
-      this.showToast('✓ Đã cập nhật mốc thay nhớt máy mới!');
-    } else if (type === 'oil_gear') {
-      this.data.vehicleMaintenance.lastGearOilOdo = curOdo;
-      if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
-      this.data.vehicleMaintenance.logs.unshift({
-        id: 'maint-' + Date.now(),
-        date: nowStr,
-        odo: curOdo,
-        type: 'oil_gear',
-        name: 'Thay nhớt hộp số (láp)',
-        cost: 45000,
-        paidBy: this.data.vehicle.currentDriverId || 'thinh',
-        note: 'Ghi nhận nhanh tại mốc ' + curOdo + ' km'
-      });
-      this.showToast('✓ Đã cập nhật mốc thay nhớt láp mới!');
+
+      this.recalculateBalances();
+      this.saveData();
+
+      // Đồng bộ nguyên tử lên Firestore cấp Database
+      if (window.grabSync && typeof window.grabSync.executeAtomicTransfer === 'function') {
+        window.grabSync.executeAtomicTransfer(from, to, amt, transferTx);
+      }
+
+      this.renderWallets();
+      this.renderTransactionsList();
+      this.closeTransferModal();
+      if (amtInput) amtInput.value = '';
+      this.showToast(`Chuyển ${this.formatVND(amt)} từ ${from} sang ${to} thành công!`);
+    } finally {
+      this.isSubmittingTx = false;
     }
-
-    this.saveState();
-    this.renderMaintenanceWidget();
-    this.renderSpliitSettlement();
-  }
-
-  handleSaveMaintenance(e) {
-    e.preventDefault();
-    const name = document.getElementById('maintNameInput').value;
-    const cost = parseInt(document.getElementById('maintCostInput').value) || 0;
-    const paidBy = document.getElementById('maintPaidBySelect').value;
-    const note = document.getElementById('maintNoteInput').value;
-    const curOdo = (this.data.vehicleMaintenance && this.data.vehicleMaintenance.currentOdo) || 0;
-    const nowStr = new Date().toLocaleDateString('vi-VN');
-
-    if (!this.data.vehicleMaintenance.logs) this.data.vehicleMaintenance.logs = [];
-    this.data.vehicleMaintenance.logs.unshift({
-      id: 'maint-' + Date.now(),
-      date: nowStr,
-      odo: curOdo,
-      type: 'repair',
-      name: name,
-      cost: cost,
-      paidBy: paidBy,
-      note: note
-    });
-
-    if (this.data.settlement) this.data.settlement.isSettled = false;
-
-    if (!this.data.notes) this.data.notes = [];
-    this.data.notes.unshift({
-      id: 'note-' + Date.now(),
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      content: `${name} (${this.formatMoney(cost)}) • Chung 1 xe`,
-      driver: paidBy === 'thinh' ? 'Thịnh' : 'Bu',
-      date: nowStr,
-      type: 'vehicle',
-      tagColor: '#1971C2'
-    });
-
-    this.saveState();
-    this.renderMaintenanceWidget();
-    this.renderSpliitSettlement();
-    this.renderNotes();
-    this.closeModal('maintenanceModal');
-    this.showToast('✓ Đã lưu chi phí bảo dưỡng & đồng bộ bù trừ 50-50!');
-  }
-
-  executeDailyClose() {
-    const walletInput = document.getElementById('closeInputWallet');
-    const fuelInput = document.getElementById('closeInputFuel');
-    const otherInput = document.getElementById('closeInputOther');
-
-    const walletVal = walletInput && walletInput.value ? parseInt(walletInput.value) : (this.data.todaySummary.walletRemaining || 0);
-    const fuelVal = fuelInput && fuelInput.value ? parseInt(fuelInput.value) : 0;
-    const otherVal = otherInput && otherInput.value ? parseInt(otherInput.value) : 0;
-
-    if (fuelVal > 0) {
-      this.data.dailyClosing.thinh.fuelExpense = fuelVal;
-    }
-    if (otherVal > 0) {
-      this.data.dailyClosing.thinh.otherExpense = otherVal;
-    }
-    this.data.todaySummary.walletRemaining = walletVal;
-    this.data.dailyClosing.walletRemaining = walletVal;
-    this.data.dailyClosing.isClosed = true;
-
-    // Lưu bản chốt vào lịch sử (PHẦN 12)
-    const todayInfo = this.getTodayInfo();
-    const historyItem = {
-      id: 'close-' + Date.now(),
-      date: todayInfo.dateStr,
-      dateLabel: todayInfo.displayStr,
-      totalRevenue: this.data.incomeOverview.total,
-      cash: this.data.incomeOverview.cash,
-      transfer: this.data.incomeOverview.transfer,
-      walletRemaining: walletVal,
-      tip: (this.data.dailyClosing.thinh.tip || 0) + (this.data.dailyClosing.bu.tip || 0),
-      fuelExpense: (this.data.dailyClosing.thinh.fuelExpense || 0) + (this.data.dailyClosing.bu.fuelExpense || 0),
-      otherExpense: (this.data.dailyClosing.thinh.otherExpense || 0) + (this.data.dailyClosing.bu.otherExpense || 0),
-      photosCount: (this.data.closingImages || []).length,
-      notesCount: (this.data.notes || []).length,
-      tripsCount: (this.data.trips || []).length,
-      thinhRev: this.data.incomeOverview.thinh.total,
-      buRev: this.data.incomeOverview.bu.total,
-      timestamp: new Date().toISOString()
-    };
-
-    if (!this.data.closedHistory) this.data.closedHistory = [];
-    this.data.closedHistory.unshift(historyItem);
-
-    this.recalculateBalances();
-    this.saveState();
-    this.renderAll();
-    this.showToast(`✓ Đã chốt sổ ngày ${todayInfo.displayStr} cho Thịnh & Bu!`);
-
-    if (window.grabSync) window.grabSync.broadcast('DAILY_CLOSE', { closing: this.data.dailyClosing });
-    setTimeout(() => {
-      this.navigateToScreen('screen-today');
-    }, 600);
   }
 
   // ===================================================
-  // 8. RENDER LỊCH SỬ CHỐT NGÀY (PHẦN 12)
+  // 13. THÔNG BÁO
   // ===================================================
-  renderClosedHistory() {
-    const container = document.getElementById('closedHistoryContainer');
-    const countEl = document.getElementById('closedHistoryCount');
-    if (!container) return;
+  renderNotifications(typeFilter = 'all') {
+    const listEl = document.getElementById('notificationsList');
+    if (!listEl) return;
 
-    const list = this.data.closedHistory || [];
-    if (countEl) countEl.textContent = `${list.length} ngày`;
+    let items = this.data.notifications || [];
+    if (typeFilter === 'tx') items = items.filter(n => n.type === 'income' || n.type === 'general');
+    else if (typeFilter === 'budget') items = items.filter(n => n.type === 'budget');
+    else if (typeFilter === 'group') items = items.filter(n => n.type === 'group');
 
-    if (list.length === 0) {
-      container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 10px;">Chưa có ngày nào được chốt</div>`;
-      return;
-    }
-
-    let html = '';
-    list.forEach(item => {
-      html += `
-        <div class="card" style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 10px; cursor: pointer;" onclick="app.openHistoryDetail('${item.id}')">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <strong style="font-size: 13px; color: var(--text-main);">${item.dateLabel}</strong>
-            <span class="badge-status completed dot" style="font-size: 10px;">Đã chốt</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
-            <span>Doanh thu: <strong style="color: var(--primary-green);">${this.formatMoney(item.totalRevenue)}</strong></span>
-            <span>Ví còn: <strong>${this.formatMoney(item.walletRemaining)}</strong></span>
-            <span>📷 ${item.photosCount} ảnh</span>
-          </div>
+    if (items.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 13px;">
+          Không có thông báo nào.
         </div>
       `;
-    });
-    container.innerHTML = html;
-  }
-
-  openHistoryDetail(closedId) {
-    const item = (this.data.closedHistory || []).find(h => h.id === closedId);
-    if (!item) return;
-
-    const titleEl = document.getElementById('historyDetailTitle');
-    const contentEl = document.getElementById('historyDetailContent');
-    if (!titleEl || !contentEl) return;
-
-    titleEl.textContent = `Chi Tiết Bản Chốt: ${item.dateLabel}`;
-    contentEl.innerHTML = `
-      <div style="background: #F0FDF4; border: 1px solid #BBF7D0; padding: 10px; border-radius: 8px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Tổng doanh thu:</span>
-          <strong style="color: var(--primary-green); font-size: 15px;">${this.formatMoney(item.totalRevenue)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Tiền mặt:</span>
-          <strong>${this.formatMoney(item.cash)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Chuyển khoản:</span>
-          <strong>${this.formatMoney(item.transfer)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Tiền còn trong ví:</span>
-          <strong>${this.formatMoney(item.walletRemaining)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Tiền tip:</span>
-          <strong>${this.formatMoney(item.tip)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Tiền xăng:</span>
-          <strong style="color: var(--accent-red);">${this.formatMoney(item.fuelExpense)}</strong>
-        </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-          <span>Chi phí khác:</span>
-          <strong style="color: var(--accent-red);">${this.formatMoney(item.otherExpense)}</strong>
-        </div>
-      </div>
-      <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-        <div>👤 Thịnh: ${this.formatMoney(item.thinhRev)} | Bu: ${this.formatMoney(item.buRev)}</div>
-        <div>🚗 Tổng số chuyến: ${item.tripsCount} | 📝 Ghi chú: ${item.notesCount} | 📷 Ảnh: ${item.photosCount}</div>
-      </div>
-    `;
-
-    this.openModal('historyDetailModal');
-  }
-
-  // ===================================================
-  // 9. RENDER MÀN HÌNH HÔM NAY
-  // ===================================================
-  renderToday() {
-    const setSafe = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-
-    const curDriver = this.data.vehicle.currentDriverId || 'thinh';
-    const dc = this.data.dailyClosing || {};
-    // Nếu có dữ liệu per-driver (dailyClosing), dùng của driver đang chọn
-    // Fallback về todaySummary (tổng 2 người) nếu chưa có
-    const d = (curDriver === 'thinh' ? dc.thinh : dc.bu) || {};
-    const s = this.data.todaySummary || {};
-
-    const hasDriverData = d.trips != null;
-    const trips     = hasDriverData ? (d.trips     || 0) : (s.trips || 0);
-    const rev       = hasDriverData ? (d.revenue   || 0) : (s.totalRevenue || 0);
-    const cash      = hasDriverData ? (d.cash      || 0) : (s.cash || 0);
-    const transfer  = hasDriverData ? (d.transfer  || 0) : (s.transfer || 0);
-    const fuel      = hasDriverData ? (d.fuelExpense   || 0) : (s.fuelExpense || 0);
-    const other     = hasDriverData ? (d.otherExpense  || 0) : (s.otherExpense || 0);
-    const net       = hasDriverData ? (d.netIncome || 0) : (s.netIncome || 0);
-
-    setSafe('todaySumTrips', trips);
-    setSafe('todaySumRev', this.formatMoney(rev));
-    setSafe('todaySumCash', this.formatMoney(cash));
-    setSafe('todaySumTransfer', this.formatMoney(transfer));
-    setSafe('todaySumFuel', this.formatMoney(fuel));
-    setSafe('todaySumOther', this.formatMoney(other));
-    setSafe('todaySumNet', this.formatMoney(net));
-    setSafe('todayWalletRemaining', this.formatMoney(s.walletRemaining || 0));
-
-    // Đổi label theo driver
-    const driverName = curDriver === 'thinh' ? 'Thịnh' : 'Bu';
-    setSafe('todaySumNetLabel', `Thu nhập thực nhận ${driverName}`);
-  }
-
-  // ===================================================
-  // QUÉT ẢNH TỰ ĐỘNG (TESSERACT.JS OCR ENGINES)
-  // ===================================================
-  async handleOcrScanTrip(fileInput) {
-    if (!fileInput.files || !fileInput.files[0]) return;
-    const file = fileInput.files[0];
-    const notice = document.getElementById('ocrScanningNotice');
-    const bar = document.getElementById('ocrProgressBarFill');
-    const pct = document.getElementById('ocrPercentText');
-    const status = document.getElementById('ocrStatusText');
-
-    if (notice) notice.style.display = 'block';
-    if (bar) bar.style.width = '10%';
-    if (pct) pct.textContent = '10%';
-    if (status) status.textContent = '⏳ Tesseract OCR: Đang nạp mô hình...';
-
-    try {
-      const scanned = await window.grabOCR.scanImage(file, (percent) => {
-        if (bar) bar.style.width = `${percent}%`;
-        if (pct) pct.textContent = `${percent}%`;
-        if (status) {
-          status.textContent = percent < 90 ? `⏳ Tesseract OCR: Đang quét ký tự (${percent}%)...` : '✨ Đang trích xuất số tiền & chuyến...';
-        }
-      });
-
-      if (scanned.amount) document.getElementById('tripAmountInput').value = scanned.amount;
-      if (scanned.time) document.getElementById('tripTimeInput').value = scanned.time;
-      if (scanned.paymentType) document.getElementById('tripTypeSelect').value = scanned.paymentType;
-      if (scanned.note) document.getElementById('tripNoteInput').value = scanned.note;
-      if (scanned.driverHint) {
-        document.getElementById('tripDriverSelect').value = scanned.driverHint;
-      }
-      this.showToast(`✨ Tesseract OCR nhận diện (${scanned.method}): ${this.formatMoney(scanned.amount)} (${scanned.paymentType === 'cash' ? 'Tiền mặt' : 'Chuyển khoản'})!`);
-    } catch (e) {
-      console.error(e);
-      this.showToast('Không thể phân tích ảnh. Vui lòng nhập thủ công!');
-    } finally {
-      setTimeout(() => {
-        if (notice) notice.style.display = 'none';
-        if (bar) bar.style.width = '0%';
-        if (pct) pct.textContent = '0%';
-      }, 800);
-      fileInput.value = '';
-    }
-  }
-
-  async handleOcrScanExpense(fileInput) {
-    if (!fileInput.files || !fileInput.files[0]) return;
-    const file = fileInput.files[0];
-    const notice = document.getElementById('ocrExpenseScanningNotice');
-    const bar = document.getElementById('ocrExpenseProgressBarFill');
-    const pct = document.getElementById('ocrExpensePercentText');
-    const status = document.getElementById('ocrExpenseStatusText');
-
-    if (notice) notice.style.display = 'block';
-    if (bar) bar.style.width = '10%';
-    if (pct) pct.textContent = '10%';
-    if (status) status.textContent = '⏳ Tesseract OCR: Đang nạp mô hình...';
-
-    try {
-      const scanned = await window.grabOCR.scanImage(file, (percent) => {
-        if (bar) bar.style.width = `${percent}%`;
-        if (pct) pct.textContent = `${percent}%`;
-        if (status) {
-          status.textContent = percent < 90 ? `⏳ Tesseract OCR: Đang quét hóa đơn (${percent}%)...` : '✨ Đang phân tích chi phí...';
-        }
-      });
-
-      if (scanned.amount) document.getElementById('expenseAmountInput').value = scanned.amount;
-      if (scanned.note) document.getElementById('expenseNoteInput').value = scanned.note;
-      if (scanned.category === 'fuel_pump') {
-        document.getElementById('expenseTypeSelect').value = 'fuel';
-      } else if (scanned.category === 'maintenance') {
-        document.getElementById('expenseTypeSelect').value = 'maintain';
-      }
-      if (scanned.driverHint) {
-        document.getElementById('expenseDriverSelect').value = scanned.driverHint;
-      }
-      this.showToast(`✨ Tesseract OCR nhận diện hóa đơn (${scanned.method}): ${this.formatMoney(scanned.amount)}!`);
-    } catch (e) {
-      console.error(e);
-      this.showToast('Không thể đọc hóa đơn. Vui lòng nhập số tiền tay!');
-    } finally {
-      setTimeout(() => {
-        if (notice) notice.style.display = 'none';
-        if (bar) bar.style.width = '0%';
-        if (pct) pct.textContent = '0%';
-      }, 800);
-      fileInput.value = '';
-    }
-  }
-
-  // Thao tác Tabs
-  setOverviewPeriod(btn, period) {
-    btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-
-    // Lọc trips thực tế theo period, không cộng dồn data ảo
-    const now = new Date();
-    const trips = this.data.trips || [];
-    let filtered;
-    if (period === 'today') {
-      this.recalculateBalances();
-      this.renderOverview();
-      this.showToast(`Thống kê: ${btn.textContent}`);
-      return;
-    } else if (period === 'week') {
-      const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 6);
-      filtered = trips.filter(t => t.date && new Date(t.date) >= weekAgo);
-    } else {
-      filtered = trips.filter(t => {
-        if (!t.date) return false;
-        const d = new Date(t.date);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      });
-    }
-
-    const thinhTrips = filtered.filter(t => t.driverId === 'thinh');
-    const buTrips    = filtered.filter(t => t.driverId === 'bu');
-    const sum  = (arr, k) => arr.reduce((a, t) => a + (parseInt(t[k]) || 0), 0);
-
-    this.data.incomeOverview.total          = sum(filtered,    'amount');
-    this.data.incomeOverview.totalTrips     = filtered.length;
-    this.data.incomeOverview.cash           = sum(filtered,    'cash');
-    this.data.incomeOverview.transfer       = sum(filtered,    'transfer');
-    this.data.incomeOverview.thinh.total    = sum(thinhTrips,  'amount');
-    this.data.incomeOverview.thinh.trips    = thinhTrips.length;
-    this.data.incomeOverview.thinh.cash     = sum(thinhTrips,  'cash');
-    this.data.incomeOverview.thinh.transfer = sum(thinhTrips,  'transfer');
-    this.data.incomeOverview.bu.total       = sum(buTrips,     'amount');
-    this.data.incomeOverview.bu.trips       = buTrips.length;
-    this.data.incomeOverview.bu.cash        = sum(buTrips,     'cash');
-    this.data.incomeOverview.bu.transfer    = sum(buTrips,     'transfer');
-    // Không saveState — chỉ render, không ghi vào localStorage
-    this.renderOverview();
-    this.showToast(`Thống kê: ${btn.textContent}`);
-  }
-
-  setScheduleTab(btn, tab) {
-    btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    this.showToast(tab === 'personal' ? 'Hiển thị ca cá nhân' : 'Hiển thị lịch chung 2 người (1 xe)');
-  }
-
-  setIncomeTab(btn, tab) {
-    btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    this.showToast(`Thu nhập: ${btn.textContent}`);
-  }
-
-  setNoteMainTab(btn, tab) {
-    btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-  }
-
-  setImageTab(btn, tab) {
-    btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-    this.showToast(`Hình ảnh: ${btn.textContent}`);
-  }
-
-  setReportPeriod(btn, period) {
-    btn.parentElement.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
-    btn.classList.add('active');
-
-    const now = new Date();
-    const trips = this.data.trips || [];
-    let filtered;
-    if (period === 'today') {
-      const todayStr = now.toISOString().slice(0, 10);
-      filtered = trips.filter(t => (t.date || '').slice(0, 10) === todayStr);
-    } else if (period === 'week') {
-      const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 6);
-      filtered = trips.filter(t => t.date && new Date(t.date) >= weekAgo);
-    } else {
-      filtered = trips.filter(t => {
-        if (!t.date) return false;
-        const d = new Date(t.date);
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      });
-    }
-
-    const thinhT = filtered.filter(t => t.driverId === 'thinh');
-    const buT    = filtered.filter(t => t.driverId === 'bu');
-    const sum    = (arr, k) => arr.reduce((a, t) => a + (parseInt(t[k]) || 0), 0);
-
-    this.data.incomeOverview.total          = sum(filtered, 'amount');
-    this.data.incomeOverview.totalTrips     = filtered.length;
-    this.data.incomeOverview.cash           = sum(filtered, 'cash');
-    this.data.incomeOverview.transfer       = sum(filtered, 'transfer');
-    this.data.incomeOverview.thinh.total    = sum(thinhT, 'amount');
-    this.data.incomeOverview.thinh.trips    = thinhT.length;
-    this.data.incomeOverview.thinh.cash     = sum(thinhT, 'cash');
-    this.data.incomeOverview.thinh.transfer = sum(thinhT, 'transfer');
-    this.data.incomeOverview.bu.total       = sum(buT, 'amount');
-    this.data.incomeOverview.bu.trips       = buT.length;
-    this.data.incomeOverview.bu.cash        = sum(buT, 'cash');
-    this.data.incomeOverview.bu.transfer    = sum(buT, 'transfer');
-    // Không saveState — chỉ hiển thị
-    this.renderReports();
-    this.showToast(`Báo cáo: ${btn.textContent}`);
-  }
-
-  prevScheduleDay() {
-    if (this.selectedDay > 1) {
-      this.selectCalendarDate(this.selectedDay - 1);
-    } else {
-      this.showToast(`Đầu tháng ${this.currentCalMonth}/${this.currentCalYear}`);
-    }
-  }
-
-  nextScheduleDay() {
-    const maxDays = new Date(this.currentCalYear, this.currentCalMonth, 0).getDate();
-    if (this.selectedDay < maxDays) {
-      this.selectCalendarDate(this.selectedDay + 1);
-    } else {
-      this.showToast(`Cuối tháng ${this.currentCalMonth}/${this.currentCalYear}`);
-    }
-  }
-
-  openBottomSheet() {
-    const modal = document.getElementById('bottomSheetModal');
-    if (modal) modal.classList.add('active');
-  }
-
-  closeBottomSheet(e) {
-    if (e && e.target !== e.currentTarget) return;
-    const modal = document.getElementById('bottomSheetModal');
-    if (modal) modal.classList.remove('active');
-  }
-
-  openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.add('active');
-      const now = new Date();
-      const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const timeInput = modal.querySelector('input[type="time"]');
-      if (timeInput && !timeInput.value) timeInput.value = timeStr;
-
-      const curDeviceUser = localStorage.getItem('grab_current_user') || 'thinh';
-      const driverSelect = modal.querySelector('#tripDriverSelect') || modal.querySelector('#scheduleDriverSelect') || modal.querySelector('#expenseDriverSelect');
-      if (driverSelect) driverSelect.value = curDeviceUser;
-    }
-  }
-
-  closeModal(modalId, e) {
-    if (e && e.target !== e.currentTarget) return;
-    const modal = document.getElementById(modalId);
-    if (modal) modal.classList.remove('active');
-  }
-
-  handleSaveExpense(e) {
-    e.preventDefault();
-    const driver = document.getElementById('expenseDriverSelect').value;
-    const amount = parseInt(document.getElementById('expenseAmountInput').value) || 0;
-    const note = document.getElementById('expenseNoteInput').value || 'Chi phí xe';
-    const type = document.getElementById('expenseTypeSelect').value;
-    const driverName = driver === 'thinh' ? 'Thịnh' : 'Bu';
-
-    if (amount <= 0) {
-      this.showToast('Vui lòng nhập số tiền chi phí hợp lệ!');
       return;
     }
 
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    listEl.innerHTML = items.map(n => `
+      <div class="notif-card-item">
+        <div class="notif-icon-circle" style="background: ${n.bg}; color: ${n.color};">
+          <i data-lucide="${n.icon}" style="width: 18px; height: 18px;"></i>
+        </div>
+        <div>
+          <div class="notif-text-title">${n.title}</div>
+          <div class="notif-time-sub">${n.time}</div>
+        </div>
+      </div>
+    `).join('');
 
-    if (type === 'fuel') {
-      this.data.dailyClosing[driver].fuelExpense = (this.data.dailyClosing[driver].fuelExpense || 0) + amount;
-    } else {
-      this.data.dailyClosing[driver].otherExpense = (this.data.dailyClosing[driver].otherExpense || 0) + amount;
-    }
-
-    const newNote = {
-      id: 'note-' + Date.now(),
-      time: timeStr,
-      content: `${note} ${this.formatMoney(amount)}`,
-      driver: driverName,
-      date: this.getTodayInfo().dateStr,
-      type: 'expense',
-      tagColor: '#1971C2'
-    };
-
-    if (!this.data.notes) this.data.notes = [];
-    this.data.notes.unshift(newNote);
-    this.recalculateBalances();
-    this.saveState();
-    this.renderAll();
-    this.closeModal('expenseModal');
-    if (e && e.target && typeof e.target.reset === 'function') e.target.reset();
-    this.showToast(`Đã lưu chi phí ${this.formatMoney(amount)} của ${driverName}`);
-
-    if (window.grabSync) window.grabSync.broadcast('ADD_NOTE', { note: newNote });
+    this.setupIcons();
   }
 
-  saveFinancialClosing() {
-    const finWallet = document.getElementById('finWallet');
-    const finFuel = document.getElementById('finFuel');
-    const finOther = document.getElementById('finOther');
+  filterNotifs(type, tabEl) {
+    const tabs = tabEl.parentElement.querySelectorAll('.segmented-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    this.renderNotifications(type);
+  }
+
+  // ===================================================
+  // 15. CÀI ĐẶT & DARK MODE
+  // ===================================================
+  applyTheme(isDark) {
+    if (isDark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      const switchEl = document.getElementById('darkModeToggleSwitch');
+      if (switchEl) switchEl.checked = true;
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      const switchEl = document.getElementById('darkModeToggleSwitch');
+      if (switchEl) switchEl.checked = false;
+    }
+  }
+
+  toggleDarkMode(isDark) {
+    this.data.user.darkMode = isDark;
+    this.saveData();
+    this.applyTheme(isDark);
+    this.showToast(isDark ? 'Đã kích hoạt Chế độ tối (Dark Mode) 🌙' : 'Đã kích hoạt Chế độ sáng (Light Mode) ☀️');
     
-    if (finWallet) {
-      const w = parseInt(finWallet.value.replace(/\D/g, '')) || 0;
-      this.data.todaySummary.walletRemaining = w;
-      this.data.dailyClosing.walletRemaining = w;
-    }
-    if (finFuel) {
-      const f = parseInt(finFuel.value.replace(/\D/g, '')) || 0;
-      // Chia đều xăng cho 2 người (dùng chung xe)
-      this.data.dailyClosing.thinh.fuelExpense = Math.round(f / 2);
-      this.data.dailyClosing.bu.fuelExpense = Math.round(f / 2);
-    }
-    if (finOther) {
-      const o = parseInt(finOther.value.replace(/\D/g, '')) || 0;
-      // Chi phí khác chia đều 50-50
-      this.data.dailyClosing.thinh.otherExpense = Math.round(o / 2);
-      this.data.dailyClosing.bu.otherExpense = Math.round(o / 2);
-    }
-    this.saveState();
-    this.recalculateBalances();
-    this.renderAll();
-    this.showToast('✓ Đã lưu chốt tài chính cuối ngày thành công!');
+    // Re-render chart colors
+    if (this.currentScreen === 'screen-dashboard') this.renderDashboardChart();
+    if (this.currentScreen === 'screen-analytics') this.renderAnalyticsCharts();
   }
 
-  openWalletDetails() {
-    const rem = (this.data.todaySummary && this.data.todaySummary.walletRemaining) || 0;
-    this.showToast(`Số dư ví GrabDriver còn lại: ${this.formatMoney(rem)}`);
+  saveSetting(key, val) {
+    this.data.user[key] = val;
+    this.saveData();
+    this.showToast('Đã lưu tùy chọn cài đặt!');
   }
 
-  recordVoiceNote() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'vi-VN';
-      recognition.interimResults = false;
-      recognition.onstart = () => this.showToast('🎤 Đang lắng nghe bạn nói...');
-      recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript;
-        const input = document.getElementById('quickNoteInput');
-        if (input) input.value = text;
-        this.showToast(`Đã nhận diện: "${text}"`);
+  renderProfile() {
+    const inc = document.getElementById('profileIncome');
+    if (inc) inc.textContent = this.formatVND(this.data.overview.monthlyIncome);
+    const exp = document.getElementById('profileExpense');
+    if (exp) exp.textContent = this.formatVND(this.data.overview.monthlyExpense);
+    const sav = document.getElementById('profileSavings');
+    if (sav) sav.textContent = this.formatVND(this.data.overview.monthlySavings);
+
+    // Cập nhật thông tin tài khoản hiển thị
+    const nameEl = document.getElementById('profileFullName');
+    if (nameEl) nameEl.textContent = this.data.user.name;
+    const userEl = document.getElementById('profileEmailOrUser');
+    if (userEl) userEl.textContent = this.data.user.email || this.data.user.username;
+    const avEl = document.getElementById('profileAvatarImg');
+    if (avEl) {
+      avEl.referrerPolicy = "no-referrer";
+      avEl.src = this.getAvatarUrl();
+      avEl.onerror = () => {
+        avEl.onerror = null;
+        avEl.src = this.getDefaultAvatarUrl();
       };
-      recognition.onerror = () => this.showToast('Không nhận diện được giọng nói.');
-      recognition.start();
-    } else {
-      this.showToast('🎤 Đang ghi âm giọng nói... (Đã lưu mô phỏng)');
-      const input = document.getElementById('quickNoteInput');
-      if (input) input.value = 'Khách vừa gửi tip thêm 20k';
     }
   }
 
-  toggleTripFilter() {
-    this.showToast('Bộ lọc: Tất cả chuyến đi trong ngày');
+  // ===================================================
+  // 16. GOOGLE AUTHENTICATION & LOGIN MANAGEMENT
+  // ===================================================
+  initAuthListener() {
+    if (typeof firebase !== 'undefined' && firebase.auth) {
+      firebase.auth().onAuthStateChanged((user) => {
+        if (user && !this.isLoggedIn) {
+          console.log('Firebase user detected on startup:', user.email);
+          this.handleLoginSuccess({
+            name: user.displayName || 'Người dùng Google',
+            email: user.email || '',
+            avatar: user.photoURL || this.getDefaultAvatarUrl(user.displayName),
+            uid: user.uid
+          }, false);
+        }
+      });
+    }
+  }
+
+  async loginWithGoogle() {
+    const btn = document.getElementById('btnGoogleLogin');
+    const originalContent = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span style="display: inline-block; width: 16px; height: 16px; border: 2px solid #10B981; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span> <span>Đang kết nối Google...</span>`;
+    }
+
+    try {
+      if (typeof firebase === 'undefined' || !firebase.auth) {
+        throw new Error('Thư viện Firebase Auth chưa sẵn sàng');
+      }
+
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await firebase.auth().signInWithPopup(provider);
+      const user = result.user;
+      if (user) {
+        this.handleLoginSuccess({
+          name: user.displayName || 'Người dùng Google',
+          email: user.email || '',
+          avatar: user.photoURL || this.getDefaultAvatarUrl(user.displayName),
+          uid: user.uid
+        });
+      }
+    } catch (error) {
+      console.warn('Google Sign-in error:', error);
+      if (error.code === 'auth/popup-closed-by-user') {
+        this.showToast('Bạn đã đóng cửa sổ đăng nhập Google.');
+      } else if (error.code === 'auth/popup-blocked') {
+        this.showToast('Trình duyệt đã chặn popup! Hãy bấm "Cho phép cửa sổ bật lên".');
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        // Đang mở popup, bỏ qua request trùng
+      } else {
+        this.showToast('Lỗi đăng nhập Google: ' + (error.message || error.code));
+      }
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+      }
+    }
+  }
+
+  loginAsGuest() {
+    this.handleLoginSuccess({
+      name: 'Khách trải nghiệm',
+      email: 'khach@fintrack.app',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      uid: 'guest-' + Date.now()
+    });
+  }
+
+  handleLoginSuccess(userInfo, showToastNotice = true) {
+    this.isLoggedIn = true;
+    const uid = userInfo.uid || ('user_' + Date.now());
+    this.storageKey = 'finance_data_' + uid;
+
+    // Kiểm tra xem người dùng này đã có dữ liệu ví/tiền trước đó chưa
+    const savedUserRecord = localStorage.getItem(this.storageKey);
+    if (savedUserRecord) {
+      try {
+        this.data = JSON.parse(savedUserRecord);
+      } catch (e) {
+        this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
+      }
+    } else {
+      // Người mới hoàn toàn: Tạo không gian tài chính sạch 0đ của riêng họ
+      this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
+      this.data.overview = { currentBalance: 0, monthlyIncome: 0, monthlyExpense: 0, monthlySavings: 0 };
+      this.data.transactions = [];
+      this.data.todayExpenses = [];
+      this.data.goals = [];
+    }
+
+    // Cập nhật thông tin profile của chính người đó
+    this.data.user.name = userInfo.name;
+    this.data.user.email = userInfo.email;
+    this.data.user.avatar = userInfo.avatar;
+    this.data.user.nickname = `${userInfo.name} 👋`;
+    this.data.user.uid = uid;
+
+    if (this.data.ranking?.leaderboard?.[0]) {
+      this.data.ranking.leaderboard[0].name = userInfo.name;
+      this.data.ranking.leaderboard[0].avatar = userInfo.avatar;
+    }
+    if (this.data.groups?.detail?.membersContribution?.[0]) {
+      this.data.groups.detail.membersContribution[0].name = userInfo.name;
+      this.data.groups.detail.membersContribution[0].avatar = userInfo.avatar;
+    }
+    if (this.data.groups?.featured?.members) {
+      this.data.groups.featured.members = [userInfo.avatar];
+    }
+
+    localStorage.setItem('finance_user_logged_in', 'true');
+    localStorage.setItem('finance_user_profile', JSON.stringify(userInfo));
+
+    this.recalculateBalances();
+    this.saveData();
+
+    // Chuyển kênh Cloud Sync sang riêng biệt theo UID của người này
+    if (window.grabSync && typeof window.grabSync.switchUser === 'function') {
+      window.grabSync.switchUser(uid, userInfo.name);
+    }
+
+    this.renderAll();
+    this.navTo('screen-dashboard');
+    if (showToastNotice) {
+      this.showToast(`🎉 Xin chào, ${userInfo.name}!`);
+    }
+  }
+
+  logout() {
+    if (confirm('Bạn có chắc chắn muốn đăng xuất tài khoản?')) {
+      if (typeof firebase !== 'undefined' && firebase.auth) {
+        firebase.auth().signOut().catch(() => {});
+      }
+      if (window.grabSync && typeof window.grabSync.stopSync === 'function') {
+        window.grabSync.stopSync();
+      }
+      this.isLoggedIn = false;
+      localStorage.removeItem('finance_user_logged_in');
+      localStorage.removeItem('finance_user_profile');
+      this.storageKey = 'finance_data_guest';
+
+      // Xóa sạch dữ liệu tài khoản cũ trong bộ nhớ RAM (Data Isolation)
+      this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
+      this.data.overview = { currentBalance: 0, monthlyIncome: 0, monthlyExpense: 0, monthlySavings: 0 };
+      this.data.transactions = [];
+      this.data.todayExpenses = [];
+      this.data.goals = [];
+
+      this.navTo('screen-login');
+      this.showToast('Đã đăng xuất thành công.');
+    }
+  }
+
+  // ===================================================
+  // RENDER TOÀN BỘ ỨNG DỤNG
+  // ===================================================
+  renderAll() {
+    this.renderDashboard();
+    this.renderCalendar();
+    this.renderTransactionsList();
+    this.renderRanking();
+    this.renderGroups();
+    this.renderBudgets();
+    this.renderGoals();
+    this.renderIncomeSources();
+    this.renderWallets();
+    this.renderNotifications();
+    this.renderProfile();
+    this.setupIcons();
   }
 }
 
+// Khởi chạy App khi DOM sẵn sàng
 document.addEventListener('DOMContentLoaded', () => {
-  window.app = new GrabApp();
+  window.app = new FinanceApp();
+
+  // Tự động đối soát và đẩy giao dịch offline khi có kết nối Internet trở lại
+  window.addEventListener('online', () => {
+    if (window.grabSync && typeof window.grabSync.reconcileOfflineQueue === 'function') {
+      window.grabSync.reconcileOfflineQueue();
+    }
+  });
 });

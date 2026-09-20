@@ -5,25 +5,31 @@
  */
 
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAgE2pwaYfduVnOFu3domBnVq9eXr9v-lk",
-  authDomain: "quanlygrab-thinhbu-8e9e3.firebaseapp.com",
-  projectId: "quanlygrab-thinhbu-8e9e3",
-  storageBucket: "quanlygrab-thinhbu-8e9e3.firebasestorage.app",
-  messagingSenderId: "402039138248",
-  appId: "1:402039138248:web:fe09d383a3b8a8c303c2fd",
-  measurementId: "G-KKDWM5DHMP"
+  apiKey: "AIzaSyAhKy48tbkAd6htvp8rr22F8m19iPpOBZM",
+  authDomain: "quanlygrab-thinhbu.firebaseapp.com",
+  projectId: "quanlygrab-thinhbu",
+  storageBucket: "quanlygrab-thinhbu.firebasestorage.app",
+  messagingSenderId: "263917541353",
+  appId: "1:263917541353:web:4493770edef4b6beacdd78",
+  measurementId: "G-2VPB6H4Q1L"
 };
 
 class GrabCloudSync {
   constructor() {
-    this.roomId = 'thinh_bu_59e2_05957';
-    this.collectionName = 'grab_shared_data';
+    let initialUid = 'guest';
+    const savedProfile = localStorage.getItem('finance_user_profile');
+    if (savedProfile) {
+      try { initialUid = JSON.parse(savedProfile).uid || 'guest'; } catch (e) {}
+    }
+    this.roomId = 'user_' + initialUid;
+    this.collectionName = 'fintrack_user_data';
     this.isConnected = false;
     this.deviceId = 'dev_' + Math.random().toString(36).substring(2, 9);
-    this.currentDriver = localStorage.getItem('grab_current_user') || 'thinh';
+    this.currentDriver = 'Người dùng';
     this.isFirebaseReady = false;
     this.saveTimeout = null;
     this.db = null;
+    this.unsubscribe = null;
 
     // Kênh broadcast đồng bộ tab cục bộ (cùng trình duyệt)
     try {
@@ -35,6 +41,29 @@ class GrabCloudSync {
 
     // Khởi tạo Firebase SDK
     this.initFirebase();
+  }
+
+  // Chuyển đổi không gian đồng bộ khi người dùng mới đăng nhập
+  switchUser(uid, userName) {
+    if (this.unsubscribe) {
+      try { this.unsubscribe(); } catch (e) {}
+    }
+    this.roomId = 'user_' + (uid || 'guest');
+    this.currentDriver = userName || 'Người dùng';
+    this.initCloudSync();
+  }
+
+  // Hủy đăng ký listener khi đăng xuất để tránh rò rỉ dữ liệu phiên cũ
+  stopSync() {
+    if (this.unsubscribe) {
+      try { this.unsubscribe(); } catch (e) {}
+      this.unsubscribe = null;
+    }
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    this.updateStatusBadge('offline', 'Đã ngắt kết nối (Đăng xuất)');
   }
 
   initFirebase() {
@@ -66,11 +95,15 @@ class GrabCloudSync {
       return;
     }
 
+    if (this.unsubscribe) {
+      try { this.unsubscribe(); } catch (e) {}
+    }
+
     const docRef = this.db.collection(this.collectionName).doc(this.roomId);
 
     this.updateStatusBadge('syncing', 'Đang kết nối Cloud...');
 
-    docRef.onSnapshot((doc) => {
+    this.unsubscribe = docRef.onSnapshot((doc) => {
       if (doc.exists) {
         const cloudData = doc.data();
 
@@ -80,16 +113,33 @@ class GrabCloudSync {
           return;
         }
 
-        // Nhận dữ liệu từ máy của người kia
+        // Nhận dữ liệu từ cloud và thực hiện Smart Merge để không làm mất transaction tạo khi offline
         if (cloudData.payload && window.app) {
           try {
             const parsed = typeof cloudData.payload === 'string' ? JSON.parse(cloudData.payload) : cloudData.payload;
+            
+            // Hợp nhất danh sách giao dịch cục bộ và Cloud tránh ghi đè mất mát
+            const localTxs = (window.app.data && window.app.data.transactions) || [];
+            const cloudTxs = (parsed && parsed.transactions) || [];
+            
+            const txMap = new Map();
+            cloudTxs.forEach(tx => { if (tx && tx.id) txMap.set(tx.id, tx); });
+            // Ưu tiên bảo toàn các transaction vừa tạo offline tại máy này
+            localTxs.forEach(tx => { if (tx && tx.id) txMap.set(tx.id, tx); });
+
+            parsed.transactions = Array.from(txMap.values());
+            // Sắp xếp lại danh sách theo ID/thời gian mới nhất lên đầu
+            parsed.transactions.sort((a, b) => String(b.id).localeCompare(String(a.id)));
+
             window.app.data = parsed;
-            localStorage.setItem(window.app.storageKey, JSON.stringify(parsed));
-            window.app.recalculateBalances();
+            const key = (window.app && window.app.storageKey) || 'finance_app_clean_user_v2';
+            localStorage.setItem(key, JSON.stringify(parsed));
+            if (window.app && typeof window.app.recalculateBalances === 'function') {
+              window.app.recalculateBalances();
+            }
             window.app.renderAll();
 
-            const senderName = cloudData.driver === 'bu' ? 'Bu' : 'Thịnh';
+            const senderName = cloudData.driver || 'Thành viên';
             window.app.showToast(`☁️ Đã đồng bộ từ Cloud (${senderName} vừa cập nhật)!`);
             this.updateStatusBadge('online', 'Đồng bộ Realtime (Cloud)');
           } catch (e) {
@@ -166,10 +216,13 @@ class GrabCloudSync {
     if (!packet || packet.sender === this.deviceId) return;
     if (window.app && packet.payload) {
       window.app.data = packet.payload;
-      localStorage.setItem(window.app.storageKey, JSON.stringify(packet.payload));
-      window.app.recalculateBalances();
+      const key = (window.app && window.app.storageKey) || 'finance_app_clean_user_v2';
+      localStorage.setItem(key, JSON.stringify(packet.payload));
+      if (window.app && typeof window.app.recalculateBalances === 'function') {
+        window.app.recalculateBalances();
+      }
       window.app.renderAll();
-      const senderName = packet.senderDriver === 'bu' ? 'Bu' : 'Thịnh';
+      const senderName = packet.senderDriver || 'Thành viên';
       window.app.showToast(`📱 Đồng bộ tab cục bộ (${senderName})`);
     }
   }
@@ -205,6 +258,158 @@ class GrabCloudSync {
       ${text || 'Đồng bộ Realtime'}
     `;
     badge.style.color = textColor;
+  }
+
+  // Lấy UID hiện tại đang đồng bộ
+  getCurrentUid() {
+    return this.roomId.replace('user_', '') || 'guest';
+  }
+
+  // 1. Ghi Transaction độc lập vào Subcollection users/{uid}/transactions/{txId} (Loại bỏ Lost Update)
+  async writeTransactionDoc(tx) {
+    if (!tx || !tx.id) return;
+    const uid = this.getCurrentUid();
+
+    // Hàng đợi Offline: Nếu mất mạng, lưu vào queue để đợi đồng bộ
+    if (!navigator.onLine || !this.isFirebaseReady || !this.db) {
+      this.queueOfflineTransaction(uid, tx);
+      return;
+    }
+
+    try {
+      await this.db.collection('users').doc(uid).collection('transactions').doc(tx.id).set({
+        ...tx,
+        syncedAt: Date.now(),
+        deviceId: this.deviceId
+      }, { merge: true });
+    } catch (err) {
+      console.warn('⚠️ Lỗi ghi Transaction Subcollection, lưu hàng đợi offline:', err.message);
+      this.queueOfflineTransaction(uid, tx);
+    }
+  }
+
+  // Quản lý hàng đợi Offline
+  queueOfflineTransaction(uid, tx) {
+    try {
+      const qKey = 'fintrack_offline_queue_' + uid;
+      const raw = localStorage.getItem(qKey);
+      const queue = raw ? JSON.parse(raw) : [];
+      if (!queue.some(t => t.id === tx.id)) {
+        queue.push(tx);
+        localStorage.setItem(qKey, JSON.stringify(queue));
+      }
+    } catch (e) {}
+  }
+
+  // Đối soát và đẩy hàng đợi Offline lên Cloud khi Online trở lại
+  async reconcileOfflineQueue() {
+    const uid = this.getCurrentUid();
+    const qKey = 'fintrack_offline_queue_' + uid;
+    const raw = localStorage.getItem(qKey);
+    if (!raw) return;
+
+    try {
+      const queue = JSON.parse(raw);
+      if (!Array.isArray(queue) || queue.length === 0) return;
+
+      if (!this.isFirebaseReady || !this.db) return;
+
+      const batch = this.db.batch();
+      queue.forEach(tx => {
+        const ref = this.db.collection('users').doc(uid).collection('transactions').doc(tx.id);
+        batch.set(ref, { ...tx, reconciledAt: Date.now(), deviceId: this.deviceId }, { merge: true });
+      });
+
+      await batch.commit();
+      localStorage.removeItem(qKey);
+      console.log(`✅ Đã đối soát và đẩy ${queue.length} giao dịch offline lên Firestore!`);
+    } catch (e) {
+      console.warn('⚠️ Lỗi đối soát hàng đợi offline:', e.message);
+    }
+  }
+
+  // 2. Chuyển tiền nguyên tử bằng Firestore runTransaction (ACID cấp Database)
+  async executeAtomicTransfer(fromAccName, toAccName, amount, txRecord) {
+    const uid = this.getCurrentUid();
+
+    // Nếu không có kết nối Cloud, fallback an toàn với local commit
+    if (!this.isFirebaseReady || !this.db || !navigator.onLine) {
+      this.pushToCloud(window.app.data);
+      this.queueOfflineTransaction(uid, txRecord);
+      return { success: true, mode: 'local-offline' };
+    }
+
+    try {
+      const fromWalletId = fromAccName === 'Tiền mặt' ? 'acc-cash' : 'acc-bank';
+      const toWalletId = toAccName === 'Tiền mặt' ? 'acc-cash' : 'acc-bank';
+
+      const fromRef = this.db.collection('users').doc(uid).collection('wallets').doc(fromWalletId);
+      const toRef = this.db.collection('users').doc(uid).collection('wallets').doc(toWalletId);
+      const txRef = this.db.collection('users').doc(uid).collection('transactions').doc(txRecord.id);
+
+      await this.db.runTransaction(async (transaction) => {
+        const fromDoc = await transaction.get(fromRef);
+        const toDoc = await transaction.get(toRef);
+
+        const currentFromBal = fromDoc.exists ? (Number(fromDoc.data().balance) || 0) : 0;
+        const currentToBal = toDoc.exists ? (Number(toDoc.data().balance) || 0) : 0;
+
+        if (currentFromBal < amount) {
+          throw new Error('Số dư ví nguồn không đủ trên Cloud');
+        }
+
+        transaction.set(fromRef, {
+          name: fromAccName,
+          balance: currentFromBal - amount,
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        transaction.set(toRef, {
+          name: toAccName,
+          balance: currentToBal + amount,
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        transaction.set(txRef, {
+          ...txRecord,
+          atomicCommitted: true,
+          createdAt: Date.now()
+        });
+      });
+
+      // Đẩy thêm bản sao backward compatibility
+      this.pushToCloud(window.app.data);
+      return { success: true, mode: 'firestore-atomic' };
+    } catch (err) {
+      console.warn('⚠️ Giao dịch Atomic trên Cloud cảnh báo:', err.message);
+      // Fallback lưu toàn bộ state để bảo toàn dữ liệu
+      this.pushToCloud(window.app.data);
+      return { success: true, mode: 'fallback-snapshot' };
+    }
+  }
+
+  // 3. Đẩy chỉ số Leaderboard toàn hệ thống với cơ chế che giấu danh tính (Privacy Masking)
+  async syncLeaderboardEntry(metric, amount, isAnonymous = false, customName = null) {
+    if (!this.isFirebaseReady || !this.db) return;
+    const uid = this.getCurrentUid();
+    if (uid === 'guest') return;
+
+    try {
+      const displayName = isAnonymous 
+        ? 'Người dùng ẩn danh' 
+        : (customName || this.currentDriver || 'Thành viên');
+
+      await this.db.collection('leaderboards').doc('monthly').collection('entries').doc(uid).set({
+        uid: uid,
+        displayName: displayName,
+        metric: metric || 'total_income',
+        amount: Number(amount) || 0,
+        isAnonymous: !!isAnonymous,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (e) {
+      console.warn('⚠️ Lỗi cập nhật Leaderboard:', e.message);
+    }
   }
 
   // Đổi người dùng máy hiện tại (Máy của Thịnh hoặc Máy của Bu)

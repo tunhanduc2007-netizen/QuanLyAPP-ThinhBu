@@ -127,8 +127,7 @@ class GrabOCR {
       note = 'Chuyến xe Grab';
     }
 
-    // 4. Trích xuất riêng Tiền mặt và Chuyển khoản từ màn hình tổng kết Grab Driver
-    // Grab Driver thường có dạng: "Tiền mặt 120.000" / "Chuyển khoản 300.000"
+    // 4. Trích xuất riêng Tiền mặt và Chuyển khoản nếu có
     let cashAmount = null;
     let transferAmount = null;
     let tripsCount = null;
@@ -139,21 +138,19 @@ class GrabOCR {
     const transferMatch = clean.match(/chuy[eể]n\s*kho[aả]n[\s:]*(\d{1,3}(?:\.\d{3})+|\d{4,})/i);
     if (transferMatch) transferAmount = parseInt(transferMatch[1].replace(/\./g, ''));
 
-    // Số chuyến: "12 chuyến", "12 cuốc", "12 trips"
     const tripsMatch = clean.match(/(\d{1,3})\s*(?:chuy[eế]n|cu[oố]c|trips?)/i);
     if (tripsMatch) tripsCount = parseInt(tripsMatch[1]);
 
     return {
-      amount: amount || 50000,
+      amount: amount || 0,
       cash: cashAmount,
       transfer: transferAmount,
       trips: tripsCount,
-      time: time || '18:00',
+      time: time || '12:00',
       paymentType: isTransfer ? 'transfer' : 'cash',
-      category,
-      note,
-      driverHint: 'thinh',
-      confidence: 0.95
+      category: category || 'Khác',
+      note: note || '',
+      confidence: amount > 0 ? 0.95 : 0.4
     };
   }
 
@@ -165,71 +162,26 @@ class GrabOCR {
       const img = new Image();
       img.crossOrigin = 'Anonymous';
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-
-        const sampleData = ctx.getImageData(0, 0, Math.min(canvas.width, 100), Math.min(canvas.height, 100)).data;
-        let rSum = 0, gSum = 0, bSum = 0, count = 0;
-        for (let i = 0; i < sampleData.length; i += 16) {
-          rSum += sampleData[i];
-          gSum += sampleData[i + 1];
-          bSum += sampleData[i + 2];
-          count++;
-        }
-        const avgR = rSum / count;
-        const avgG = gSum / count;
-        const avgB = bSum / count;
-
         const now = new Date();
         const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-        let result = {
-          amount: 50000,
+        resolve({
+          amount: 0,
           time: timeStr,
-          paymentType: 'transfer',
-          note: 'Chuyến xe Grab Driver',
-          category: 'app_summary',
-          driverHint: 'thinh',
-          confidence: 0.9
-        };
-
-        if (avgG > avgR * 1.3 && avgG > avgB * 1.2) {
-          result.category = 'app_summary';
-          result.amount = 620000;
-          result.paymentType = 'transfer';
-          result.note = 'Doanh thu ứng dụng Grab Driver';
-        } else if (avgB > avgR * 1.2 && avgB > avgG) {
-          result.category = 'bank_transfer';
-          result.amount = 300000;
-          result.paymentType = 'transfer';
-          result.note = 'Chuyển khoản tiền Grab';
-          result.driverHint = 'bu';
-        } else if (avgR < 50 && avgG < 50 && avgB < 50) {
-          result.category = 'odometer';
-          result.amount = 100000;
-          result.paymentType = 'cash';
-          result.note = 'Đồng hồ xe ODO / Xăng';
-        } else {
-          result.category = 'fuel_pump';
-          result.amount = 100000;
-          result.paymentType = 'cash';
-          result.note = 'Đổ xăng Petrolimex';
-        }
-
-        resolve(result);
+          paymentType: 'cash',
+          note: '',
+          category: 'Khác',
+          confidence: 0
+        });
       };
       img.onerror = () => {
         resolve({
-          amount: 50000,
-          time: '18:00',
+          amount: 0,
+          time: '12:00',
           paymentType: 'cash',
-          note: 'Chuyến xe Grab',
-          category: 'app_summary',
-          driverHint: 'thinh',
-          confidence: 0.8
+          note: '',
+          category: 'Khác',
+          confidence: 0
         });
       };
       img.src = dataUrl;

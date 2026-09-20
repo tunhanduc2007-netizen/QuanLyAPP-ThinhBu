@@ -3,1683 +3,1214 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#0C7247">
-  <title>Quản lý chạy Grab — Thịnh & Bu (Chung 1 xe)</title>
+  <meta name="theme-color" content="#10B981">
+  <title>Tài Chính Cá Nhân & Nhóm — Chuẩn Di Động</title>
   
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230C7247'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>🛵</text></svg>">
+  <!-- iOS Safari Add to Home Screen & Bookmarks Icon -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FinTrack Pro">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon-precomposed" href="apple-touch-icon.png">
+  
+  <!-- Standard Favicon & Icons -->
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+  <link rel="shortcut icon" href="apple-touch-icon.png">
 
   <!-- Google Fonts: Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
-  <!-- Open Source CDN: Chart.js & Tesseract.js -->
+  <!-- Lucide Icons & Chart.js -->
+  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- ===================================================
-       APP ROOT (Full Viewport 100% Native Layout)
-       =================================================== -->
-  <div class="app-root" id="appRoot">
+  <!-- MOBILE VIEWPORT CONTAINER -->
+  <div class="mobile-viewport" id="mobileApp">
     
-    <!-- SIDE DRAWER MENU (Bám sát 100% Ảnh reference 2) -->
-    <div class="drawer-backdrop" id="drawerBackdrop" onclick="app.closeSideMenu()"></div>
-    <aside class="side-drawer" id="sideDrawerMenu">
-        <!-- Header Xanh Grab -->
-        <div class="drawer-header">
-          <div class="drawer-vehicle-box">
-            <div class="drawer-scooter-badge">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="18" r="3"/>
-                <path d="M6 15h5l3-6h4v2h-3l-2 4h5a1 1 0 0 1 1 1v2h-2a3 3 0 0 0-6 0H9a3 3 0 0 0-6 0H1v-2a1 1 0 0 1 1-1h4z"/>
-                <path d="M14 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+    <!-- iOS Top Status Bar with Dynamic Island -->
+    <div class="ios-status-bar">
+      <span class="ios-time" id="statusClock">9:41</span>
+      <div class="dynamic-island">
+        <div class="island-camera-dot"></div>
+      </div>
+      <div class="ios-icons">
+        <!-- Signal -->
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2 19h2V12H2v7zm4 0h2V8H6v11zm4 0h2V4h-2v15zm4 0h2v-9h-2v9zm4 0h2V2h-2v17z"/>
+        </svg>
+        <!-- Wifi -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+          <line x1="12" y1="20" x2="12.01" y2="20"/>
+        </svg>
+        <!-- Battery -->
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <rect x="2" y="7" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M20 10v4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          <rect x="4" y="9" width="12" height="6" rx="1"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- MAIN SCREENS CONTAINER -->
+    <main class="screen-container">
+
+      <!-- ===================================================
+           0. SCREEN: ĐĂNG NHẬP (GOOGLE SIGN-IN)
+           =================================================== -->
+      <section class="app-screen" id="screen-login">
+        <div class="login-screen-wrap">
+          <!-- Top Branding -->
+          <div class="login-brand-header">
+            <div class="login-app-logo" style="background: transparent; box-shadow: 0 10px 25px rgba(0,0,0,0.3); overflow: hidden; padding: 0;">
+              <img src="apple-touch-icon.png" alt="FinTrack Pro Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 20px;">
+            </div>
+            <h1 class="login-app-title">FinTrack Pro</h1>
+            <p class="login-app-subtitle">Quản lý thu chi thông minh & đồng bộ tức thì</p>
+          </div>
+
+          <!-- Feature Cards / Value Props -->
+          <div class="login-features-box">
+            <div class="login-feature-item">
+              <div class="login-feature-icon" style="background: #ECFDF5; color: #10B981;">
+                <i data-lucide="zap" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div class="login-feature-text">
+                <div class="login-feature-title">Ghi chép chi tiêu siêu tốc</div>
+                <div class="login-feature-desc">Nhập thu chi tiện lợi chỉ trong 3 giây</div>
+              </div>
+            </div>
+
+            <div class="login-feature-item">
+              <div class="login-feature-icon" style="background: #EFF6FF; color: #3B82F6;">
+                <i data-lucide="pie-chart" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div class="login-feature-text">
+                <div class="login-feature-title">Báo cáo & Phân tích trực quan</div>
+                <div class="login-feature-desc">Biểu đồ thu chi chi tiết theo từng danh mục</div>
+              </div>
+            </div>
+
+            <div class="login-feature-item">
+              <div class="login-feature-icon" style="background: #FEF3C7; color: #D97706;">
+                <i data-lucide="users" style="width: 18px; height: 18px;"></i>
+              </div>
+              <div class="login-feature-text">
+                <div class="login-feature-title">Quản lý quỹ nhóm & gia đình</div>
+                <div class="login-feature-desc">Minh bạch dòng tiền, chia sẻ thống kê thời gian thực</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Login Buttons Section -->
+          <div class="login-actions-wrap">
+            <button class="btn-google-login" id="btnGoogleLogin" onclick="app.loginWithGoogle()">
+              <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
               </svg>
+              <span>Đăng nhập bằng Google</span>
+            </button>
+
+            <div class="login-divider-row">
+              <span class="login-divider-line"></span>
+              <span class="login-divider-text">hoặc</span>
+              <span class="login-divider-line"></span>
+            </div>
+
+            <button class="btn-guest-login" onclick="app.loginAsGuest()">
+              <i data-lucide="user" style="width: 17px; height: 17px;"></i>
+              <span>Dùng thử không cần tài khoản</span>
+            </button>
+          </div>
+
+          <!-- Privacy Footnote -->
+          <div class="login-footer-policy">
+            Bằng việc tiếp tục, bạn đồng ý với <a href="javascript:void(0)" onclick="app.showToast('Bảo mật tài khoản tuân thủ tiêu chuẩn Google')">Điều khoản</a> & <a href="javascript:void(0)" onclick="app.showToast('Dữ liệu được lưu trữ an toàn')">Quyền riêng tư</a>.
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================
+           1. SCREEN: TỔNG QUAN (DASHBOARD)
+           =================================================== -->
+      <section class="app-screen" id="screen-dashboard">
+        <!-- Header: Avatar + Xin chào + Bell -->
+        <div class="user-greeting-box">
+          <div class="user-profile-summary" onclick="app.navTo('screen-profile')">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="avatar-circle" id="dashUserAvatar" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=FinTrack&background=10B981&color=fff&bold=true';">
+            <div class="user-greeting-text">
+              <div class="greet-sub">Xin chào,</div>
+              <div class="user-name" id="dashUserName">Nhân Từ Đức 👋</div>
+              <div class="user-sub-msg">Chúc bạn một ngày tốt lành!</div>
+            </div>
+          </div>
+          <button class="btn-header-icon" onclick="app.navTo('screen-notifications')" title="Thông báo">
+            <i data-lucide="bell" style="width: 20px; height: 20px;"></i>
+            <span class="badge-dot"></span>
+          </button>
+        </div>
+
+        <!-- Thẻ Số Dư Lớn Gradient Emerald/Teal -->
+        <div class="balance-gradient-card">
+          <div class="balance-card-header">
+            <span class="balance-card-label">
+              Số dư hiện tại
+              <button class="btn-toggle-eye" onclick="app.toggleBalanceVisibility()" title="Ẩn/Hiện số dư">
+                <i data-lucide="eye" id="eyeBalanceIcon" style="width: 16px; height: 16px;"></i>
+              </button>
+            </span>
+          </div>
+          <div class="balance-amount" id="dashMainBalance">0đ</div>
+          <div class="balance-badge-row">
+            <span class="pill-badge pill-white">▲ +0% so với tháng trước</span>
+          </div>
+        </div>
+
+        <!-- 2 Card: Thu nhập & Chi tiêu tháng này -->
+        <div class="metrics-two-row">
+          <div class="metric-card" onclick="app.navTo('screen-transactions')">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle" style="background: var(--primary-green-light); color: var(--primary-green);">
+                <i data-lucide="arrow-down-left" style="width: 18px; height: 18px;"></i>
+              </div>
+              <span class="pill-badge pill-green">+0%</span>
+            </div>
+            <div class="metric-card-label">Thu nhập tháng này</div>
+            <div class="metric-card-val" id="dashMonthlyIncome">0đ</div>
+          </div>
+
+          <div class="metric-card" onclick="app.navTo('screen-transactions')">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle" style="background: var(--accent-red-light); color: var(--accent-red);">
+                <i data-lucide="arrow-up-right" style="width: 18px; height: 18px;"></i>
+              </div>
+              <span class="pill-badge pill-red">-0%</span>
+            </div>
+            <div class="metric-card-label">Chi tiêu tháng này</div>
+            <div class="metric-card-val" id="dashMonthlyExpense">0đ</div>
+          </div>
+        </div>
+
+        <!-- Thẻ Tiết Kiệm Tháng Này -->
+        <div class="savings-card" onclick="app.navTo('screen-goals')">
+          <div class="savings-card-left">
+            <span class="savings-card-label">Tiết kiệm tháng này</span>
+            <span class="savings-card-val" id="dashMonthlySavings">0đ</span>
+          </div>
+          <span class="pill-badge pill-green">+0%</span>
+        </div>
+
+        <!-- Biểu Đồ Thu Nhập vs Chi Tiêu (Line Chart) -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <span class="chart-card-title">Thu nhập vs Chi tiêu</span>
+            <select class="chart-period-select" id="dashChartFilter" onchange="app.updateDashboardChart(this.value)">
+              <option value="30d">30 ngày ⌵</option>
+              <option value="7d">7 ngày ⌵</option>
+              <option value="90d">3 tháng ⌵</option>
+            </select>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="dashLineChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Chi Tiêu Hôm Nay -->
+        <div class="ui-card">
+          <div class="section-title-row" style="margin-top: 0;">
+            <span class="section-title">Chi tiêu hôm nay</span>
+            <span class="section-link" onclick="app.navTo('screen-transactions')">Xem tất cả</span>
+          </div>
+          <div id="dashTodayExpensesList">
+            <!-- Render từ JS -->
+          </div>
+        </div>
+
+        <!-- Nút "+ Thêm giao dịch" Nổi bật -->
+        <button class="btn-primary" onclick="app.openAddTx('expense')">
+          <i data-lucide="plus" style="width: 20px; height: 20px;"></i>
+          + Thêm giao dịch
+        </button>
+      </section>
+
+
+      <!-- ===================================================
+           2. SCREEN: LỊCH THU CHI (CALENDAR)
+           =================================================== -->
+      <section class="app-screen" id="screen-calendar">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Lịch tài chính</h2>
+        </div>
+
+        <!-- Month Navigation -->
+        <div class="calendar-month-selector">
+          <button class="btn-arrow-nav" onclick="app.changeMonth(-1)">‹</button>
+          <span class="month-selector-title" id="calMonthYearTitle">Tháng 9/2026</span>
+          <button class="btn-arrow-nav" onclick="app.changeMonth(1)">›</button>
+        </div>
+
+        <!-- Segmented Control Ngày | Tuần | Tháng -->
+        <div class="segmented-control">
+          <div class="segmented-tab active" onclick="app.setCalendarView('day', this)">Ngày</div>
+          <div class="segmented-tab" onclick="app.setCalendarView('week', this)">Tuần</div>
+          <div class="segmented-tab" onclick="app.setCalendarView('month', this)">Tháng</div>
+        </div>
+
+        <!-- Calendar Month Table -->
+        <div class="calendar-weekdays-row">
+          <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+        </div>
+        <div class="calendar-days-grid" id="calDaysGrid">
+          <!-- Render ngày 1 đến 30 động từ JS -->
+        </div>
+
+        <!-- Day Detail Card -->
+        <div class="day-detail-card" id="calDayDetailCard">
+          <div class="day-detail-header" id="calSelectedDateTitle">20/09/2026</div>
+          <div class="day-stats-3col">
+            <div>
+              <div class="day-stat-val" style="color: var(--primary-green);" id="calDayIncome">+0đ</div>
+              <div class="day-stat-lbl">Thu nhập</div>
             </div>
             <div>
-              <div class="drawer-vehicle-title">Air Blade 125</div>
-              <div class="drawer-vehicle-sub">59E2-059.57 • Chung 1 xe</div>
+              <div class="day-stat-val" style="color: var(--accent-red);" id="calDayExpense">-0đ</div>
+              <div class="day-stat-lbl">Chi tiêu</div>
+            </div>
+            <div>
+              <div class="day-stat-val" style="color: var(--primary-green);" id="calDayNet">+0đ</div>
+              <div class="day-stat-lbl">Thực nhận</div>
             </div>
           </div>
-          <button class="drawer-close-btn" onclick="app.closeSideMenu()" title="Đóng menu">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+
+          <div class="section-title" style="margin-bottom: 8px;">Giao dịch trong ngày</div>
+          <div id="calDayTxList">
+            <!-- Render từ JS -->
+          </div>
+
+          <div class="day-actions-row">
+            <button class="btn-cal-add-income" onclick="app.openAddTx('income')">+ Thêm thu nhập</button>
+            <button class="btn-cal-add-expense" onclick="app.openAddTx('expense')">+ Thêm chi tiêu</button>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           3. SCREEN: DANH SÁCH GIAO DỊCH
+           =================================================== -->
+      <section class="app-screen" id="screen-transactions">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Giao dịch</h2>
+        </div>
+
+        <!-- Filter pills: Tất cả | Thu nhập | Chi tiêu | Chuyển khoản -->
+        <div class="segmented-control">
+          <div class="segmented-tab active" onclick="app.filterTxTab('all', this)">Tất cả</div>
+          <div class="segmented-tab" onclick="app.filterTxTab('income', this)">Thu nhập</div>
+          <div class="segmented-tab" onclick="app.filterTxTab('expense', this)">Chi tiêu</div>
+          <div class="segmented-tab" onclick="app.filterTxTab('transfer', this)">Chuyển khoản</div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-input-wrap">
+          <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+          <input type="text" class="search-input-field" id="txSearchInput" placeholder="Tìm kiếm giao dịch..." oninput="app.searchTransactions(this.value)">
+        </div>
+
+        <!-- Filter Dropdowns Row -->
+        <div class="filter-dropdowns-row">
+          <button class="filter-dropdown-btn">Ngày ⌵</button>
+          <button class="filter-dropdown-btn">Danh mục ⌵</button>
+          <button class="filter-dropdown-btn">Tài khoản ⌵</button>
+        </div>
+
+        <!-- Transaction List -->
+        <div class="ui-card" style="padding: 6px 16px;">
+          <div id="allTransactionsList">
+            <!-- Render từ JS -->
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           4. SCREEN: THÊM GIAO DỊCH
+           =================================================== -->
+      <section class="app-screen" id="screen-add-transaction">
+        <div class="screen-header-bar">
+          <button class="btn-header-back" onclick="app.goBack()">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
           </button>
+          <h2 class="screen-header-title" style="flex: 1; text-align: center; margin-right: 36px;">Thêm giao dịch</h2>
         </div>
 
-        <!-- Body Cuộn -->
-        <div class="drawer-body">
-          
-          <!-- Card Đang Giữ Xe -->
-          <div class="drawer-card-box">
-            <div class="drawer-subhead">
-              <span style="color: #10B981; font-size: 8px;">●</span> ĐANG GIỮ XE
-            </div>
-            <div class="drawer-driver-toggles">
-              <button class="btn-drawer-driver active" id="drawerBtnThinh" onclick="app.switchActiveDriver('thinh'); app.updateDrawerDriverState();">
-                <span class="driver-avatar-circle thinh">T</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span>Thịnh</span>
-              </button>
-              <button class="btn-drawer-driver" id="drawerBtnBu" onclick="app.switchActiveDriver('bu'); app.updateDrawerDriverState();">
-                <span class="driver-avatar-circle bu">B</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <span>Bu</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- NHÓM 1: XE & LỊCH TRÌNH -->
-          <div class="drawer-section-title">🛵 XE & LỊCH TRÌNH</div>
-          <div class="drawer-menu-list">
-            <!-- Lịch chạy 2 người -->
-            <div class="drawer-item-card" data-screen="screen-schedule" onclick="app.navigateToScreenFromDrawer('screen-schedule')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon blue">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Lịch chạy 2 người</div>
-                  <span class="drawer-item-desc">Phân chia khung giờ, cuốn lịch tháng</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- Sổ bảo dưỡng xe -->
-            <div class="drawer-item-card" onclick="app.openMaintenanceModal(); app.closeSideMenu();">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon orange">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Sổ bảo dưỡng xe (LubeLogger)</div>
-                  <span class="drawer-item-desc">Đồng hồ ODO, thay nhớt, sửa xe chung</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-          </div>
-
-          <!-- NHÓM 2: TÀI CHÍNH & ĐỐI SOÁT -->
-          <div class="drawer-section-title">💰 TÀI CHÍNH & ĐỐI SOÁT</div>
-          <div class="drawer-menu-list">
-            <!-- Chốt ca & Chia tiền Spliit -->
-            <div class="drawer-item-card" data-screen="screen-closing" onclick="app.navigateToScreenFromDrawer('screen-closing')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon rose">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Chốt ca & Chia tiền (Spliit)</div>
-                  <span class="drawer-item-desc">Đối soát nợ, xăng xe, tiền mặt & ví</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- Thu nhập & Chuyến -->
-            <div class="drawer-item-card" data-screen="screen-income" onclick="app.navigateToScreenFromDrawer('screen-income')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon mint">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Thu nhập & Chuyến xe</div>
-                  <span class="drawer-item-desc">Chi tiết từng cuốc xe Grab</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- Báo cáo & Biểu đồ -->
-            <div class="drawer-item-card" data-screen="screen-reports" onclick="app.navigateToScreenFromDrawer('screen-reports')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon cyan">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Báo cáo & Biểu đồ (Chart.js)</div>
-                  <span class="drawer-item-desc">So sánh Thịnh vs Bu, tỷ trọng tiền mặt/CK</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- Kho ảnh chứng từ -->
-            <div class="drawer-item-card" data-screen="screen-images" onclick="app.navigateToScreenFromDrawer('screen-images')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon purple">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Kho ảnh chốt & Hóa đơn</div>
-                  <span class="drawer-item-desc">Ảnh chốt app Grab, biên lai đổ xăng</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-          </div>
-
-          <!-- NHÓM 3: NHẬT KÝ & GHI CHÚ -->
-          <div class="drawer-section-title">📝 NHẬT KÝ & GHI CHÚ</div>
-          <div class="drawer-menu-list">
-            <!-- Sổ Note -->
-            <div class="drawer-item-card" data-screen="screen-notes" onclick="app.navigateToScreenFromDrawer('screen-notes')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon lilac">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Sổ Note & Bàn giao ca</div>
-                  <span class="drawer-item-desc">Dặn dò, ghi chú xe giữa 2 người</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <!-- Tổng kết hôm nay -->
-            <div class="drawer-item-card" data-screen="screen-today" onclick="app.navigateToScreenFromDrawer('screen-today')">
-              <div class="drawer-item-left">
-                <div class="drawer-item-icon green">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                    <circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/>
-                    <path d="M6 15h5l3-6h4v2h-3l-2 4h5a1 1 0 0 1 1 1v2h-2a3 3 0 0 0-6 0H9a3 3 0 0 0-6 0H1v-2a1 1 0 0 1 1-1h4z"/>
-                    <path d="M14 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-                  </svg>
-                </div>
-                <div class="drawer-item-text">
-                  <div class="drawer-title-bold">Tổng kết ngày hôm nay</div>
-                  <span class="drawer-item-desc">Tóm tắt số chuyến & tiền ròng</span>
-                </div>
-              </div>
-              <svg class="drawer-chevron" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-          </div>
-
-          <!-- Section Công Cụ Quản Trị -->
-          <div class="drawer-tools-box">
-            <div class="drawer-subhead" style="margin-bottom: 10px;">
-              <span style="color: #059669; font-size: 13px;">⚡</span> CÔNG CỤ QUẢN TRỊ
-            </div>
-            
-            <div class="drawer-action-card red" onclick="app.confirmResetClean(); app.closeSideMenu();">
-              <div class="drawer-action-left">
-                <div class="drawer-action-icon red">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                </div>
-                <div>
-                  <div class="drawer-action-title red">Reset toàn bộ về 0đ (Clean)</div>
-                  <div class="drawer-action-desc red">Xóa toàn bộ dữ liệu, đưa về trạng thái ban đầu</div>
-                </div>
-              </div>
-              <svg class="drawer-chevron red" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-
-            <div class="drawer-action-card amber" onclick="app.loadDemoReferenceData(); app.closeSideMenu();">
-              <div class="drawer-action-left">
-                <div class="drawer-action-icon amber">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-                </div>
-                <div>
-                  <div class="drawer-action-title amber">Nạp dữ liệu mẫu (Reference)</div>
-                  <div class="drawer-action-desc amber">Tạo dữ liệu demo để test nhanh</div>
-                </div>
-              </div>
-              <svg class="drawer-chevron amber" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-          </div>
-
+        <!-- Segmented Control Thu nhập | Chi tiêu -->
+        <div class="segmented-green">
+          <div class="segmented-green-tab active" id="tabAddIncome" onclick="app.setAddType('income')">Thu nhập</div>
+          <div class="segmented-green-tab" id="tabAddExpense" onclick="app.setAddType('expense')">Chi tiêu</div>
         </div>
-      </aside>
 
-      <!-- App Header (Full Width Bar) -->
-      <header class="app-header" id="appHeader">
-        <div class="header-container">
-          <div class="header-left">
-            <button class="header-btn" id="headerLeftBtn" title="Menu / Quay lại">
-              <svg id="headerLeftIcon" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" fill="none">
-                <line x1="4" y1="7" x2="20" y2="7"/>
-                <line x1="4" y1="12" x2="20" y2="12"/>
-                <line x1="4" y1="17" x2="20" y2="17"/>
-              </svg>
-            </button>
-            <div class="header-title-box">
-              <span class="header-title" id="headerTitle">Quản lý chạy Grab</span>
-              <span class="header-subtitle" id="headerSubtitle">Cùng nhau kiếm thêm thu nhập</span>
-            </div>
-          </div>
-          <div class="header-right">
-            <select id="deviceUserSelector" onchange="app.switchDeviceUser(this.value)" style="display:none;">
-              <option value="thinh">Máy: Thịnh</option>
-              <option value="bu">Máy: Bu</option>
-            </select>
-            <span id="cloudSyncStatusBadge" style="display:none;"></span>
-            <button class="header-btn notif-btn" id="headerRightBtn" style="display:none;">
-              <svg id="headerRightIcon" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-              <span class="notif-badge" id="notifBadge"></span>
-            </button>
+        <!-- Số tiền Input Lớn -->
+        <div class="form-group">
+          <label class="form-label">Số tiền</label>
+          <div class="amount-input-box">
+            <input type="text" class="amount-big-field" id="addAmountInput" placeholder="0 đ" oninput="app.formatAddAmount(this)">
           </div>
         </div>
-      </header>
 
-      <!-- App Scrollable Body -->
-      <div class="app-content" id="appContent">
-
-        <!-- ==============================================
-             SCREEN 1: TỔNG QUAN
-             ============================================== -->
-        <article class="screen-view active" id="screen-overview">
-          
-          <!-- Card Xe (1 Xe / 2 Người) -->
-          <div class="card vehicle-main-card">
-            <div class="vehicle-info-row">
-              <div class="vehicle-left">
-                <div class="scooter-icon-circle">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <circle cx="6" cy="18" r="3"/>
-                    <circle cx="18" cy="18" r="3"/>
-                    <path d="M6 15h5l3-6h4v2h-3l-2 4h5a1 1 0 0 1 1 1v2h-2a3 3 0 0 0-6 0H9a3 3 0 0 0-6 0H1v-2a1 1 0 0 1 1-1h4z"/>
-                    <path d="M14 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-                  </svg>
-                </div>
-                <div class="vehicle-text">
-                  <span class="vehicle-label">Chung 1 xe • Air Blade 125</span>
-                  <span class="vehicle-plate">59E2-059.57</span>
-                </div>
-              </div>
-              <span class="badge-status running dot" id="overviewVehicleStatus">Đang chạy</span>
+        <!-- Danh mục Select -->
+        <div class="form-group">
+          <label class="form-label">Danh mục</label>
+          <div class="select-row-card" onclick="app.openCategorySheet()">
+            <div class="select-row-left">
+              <i data-lucide="folder" id="addCatIcon" style="color: var(--primary-green); width: 18px; height: 18px;"></i>
+              <span id="addCatLabel">Chọn danh mục</span>
             </div>
-
-            <!-- 2 Tài xế side by side -->
-            <div class="drivers-row">
-              <div class="driver-pill-card active-driver" id="cardThinhStatus" onclick="app.switchActiveDriver('thinh')">
-                <div class="driver-avatar thinh">T</div>
-                <span class="driver-name">Thịnh</span>
-                <span class="badge-status running dot" style="font-size: 10px; padding: 2px 8px;">Đang chạy</span>
-              </div>
-              <div class="driver-pill-card" id="cardBuStatus" onclick="app.switchActiveDriver('bu')">
-                <div class="driver-avatar bu">B</div>
-                <span class="driver-name">Bu</span>
-                <span class="badge-status available dot" style="font-size: 10px; padding: 2px 8px;">Sẵn sàng</span>
-              </div>
-            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
           </div>
+        </div>
 
-          <!-- Card Doanh thu hôm nay -->
-          <div class="card">
-            <div class="card-header-row">
-              <span class="card-title-sm">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                <span id="overviewCardTitle">Tổng thu nhập hôm nay</span>
-              </span>
-              <span class="card-link" onclick="app.navigateToScreen('screen-income')">Hôm nay &gt;</span>
-            </div>
+        <!-- Mô tả (tùy chọn) -->
+        <div class="form-group">
+          <label class="form-label">Mô tả (tùy chọn)</label>
+          <input type="text" class="input-text-standard" id="addNoteInput" placeholder="Nhập mô tả">
+        </div>
 
-            <div class="income-main-amount">
-              <span class="amount-large" id="overviewTotalAmount">0đ</span>
-              <div class="trip-count-badge">
-                <div class="trip-count-num" id="overviewTotalTrips">0</div>
-                <div class="trip-count-label">chuyến</div>
-              </div>
-            </div>
-
-            <div class="trend-indicator" id="overviewTrendIndicator" style="display: none;">
-              <span>↑ +0đ so với hôm qua</span>
-            </div>
-
-            <!-- Tiền mặt vs Chuyển khoản -->
-            <div class="payment-split-grid">
-              <div class="split-item">
-                <div class="split-icon cash">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
-                </div>
-                <div class="split-info">
-                  <span class="split-label">Tiền mặt</span>
-                  <span class="split-val" id="overviewCash">0đ</span>
-                </div>
-              </div>
-
-              <div class="split-item">
-                <div class="split-icon transfer">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="21" x2="21" y2="21"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="5 6 12 3 19 6"/><line x1="4" y1="10" x2="4" y2="21"/><line x1="20" y1="10" x2="20" y2="21"/></svg>
-                </div>
-                <div class="split-info">
-                  <span class="split-label">Chuyển khoản</span>
-                  <span class="split-val" id="overviewTransfer">0đ</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Section Theo thời gian -->
+        <!-- Ngày & Giờ (2 Cột) -->
+        <div class="form-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <div>
-            <div class="section-title-sm">Theo thời gian</div>
-            <div class="pill-tabs" style="margin-bottom: 12px;">
-              <button class="pill-tab active" onclick="app.setOverviewPeriod(this, 'today')">Hôm nay</button>
-              <button class="pill-tab" onclick="app.setOverviewPeriod(this, 'week')">Tuần này</button>
-              <button class="pill-tab" onclick="app.setOverviewPeriod(this, 'month')">Tháng này</button>
-            </div>
-
-            <!-- 2 Thẻ chi tiết Thịnh & Bu -->
-            <div class="driver-breakdown-grid">
-              
-              <!-- Card Thịnh -->
-              <div class="driver-stat-card">
-                <div class="driver-stat-header">
-                  <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--driver-thinh);"></span>
-                  <span>Thịnh</span>
-                </div>
-                <div class="driver-stat-amount" id="thinhStatAmount">0đ</div>
-                <div class="driver-stat-trips">
-                  <span>🚗</span> <span id="thinhStatTrips">0 chuyến</span>
-                </div>
-                <div class="driver-stat-sub">
-                  <div class="driver-stat-row">
-                    <span>💵 Tiền mặt:</span>
-                    <strong id="thinhStatCash">0đ</strong>
-                  </div>
-                  <div class="driver-stat-row">
-                    <span>💳 CK:</span>
-                    <strong id="thinhStatTransfer">0đ</strong>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Card Bu -->
-              <div class="driver-stat-card">
-                <div class="driver-stat-header">
-                  <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--driver-bu);"></span>
-                  <span>Bu</span>
-                </div>
-                <div class="driver-stat-amount" id="buStatAmount">0đ</div>
-                <div class="driver-stat-trips">
-                  <span>🚗</span> <span id="buStatTrips">0 chuyến</span>
-                </div>
-                <div class="driver-stat-sub">
-                  <div class="driver-stat-row">
-                    <span>💵 Tiền mặt:</span>
-                    <strong id="buStatCash">0đ</strong>
-                  </div>
-                  <div class="driver-stat-row">
-                    <span>💳 CK:</span>
-                    <strong id="buStatTransfer">0đ</strong>
-                  </div>
-                </div>
-              </div>
-
-            </div>
+            <label class="form-label">Ngày</label>
+            <input type="date" class="input-text-standard" id="addDateInput" value="2026-09-20">
           </div>
-
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 2: LỊCH CHẠY (CUỐN LỊCH THÁNG 9/2026)
-             ============================================== -->
-        <article class="screen-view" id="screen-schedule">
-          
-          <!-- Tabs Cá nhân / Lịch chung (Đang chọn Lịch chung) -->
-          <div class="pill-tabs">
-            <button class="pill-tab" onclick="app.setScheduleTab(this, 'personal')">Cá nhân</button>
-            <button class="pill-tab active" onclick="app.setScheduleTab(this, 'common')">Lịch chung 1 xe</button>
-          </div>
-
-          <!-- CUỐN LỊCH THÁNG (BẮT ĐẦU TỪ THÁNG 9 NĂM 2026) -->
-          <div class="card calendar-card">
-            <div class="calendar-month-header">
-              <button class="date-nav-btn" onclick="app.changeCalendarMonth(-1)" title="Tháng trước">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="calendar-month-title" id="calendarMonthTitle">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                  Tháng 9, 2026
-                </span>
-                <button type="button" class="btn-today-chip" onclick="app.goToTodaySchedule()" title="Về ngày hôm nay">Hôm nay</button>
-              </div>
-              <button class="date-nav-btn" onclick="app.changeCalendarMonth(1)" title="Tháng sau">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </div>
-
-            <!-- Hàng thứ trong tuần -->
-            <div class="calendar-weekdays-grid">
-              <span>T2</span>
-              <span>T3</span>
-              <span>T4</span>
-              <span>T5</span>
-              <span>T6</span>
-              <span>T7</span>
-              <span style="color: #E03131;">CN</span>
-            </div>
-
-            <!-- Lưới các ngày trong tháng (Render qua JS) -->
-            <div class="calendar-days-grid" id="calendarDaysGrid">
-              <!-- Rendered via JS -->
-            </div>
-
-            <!-- Chú thích màu sắc tài xế -->
-            <div class="calendar-legend-bar">
-              <span style="display: flex; align-items: center; gap: 4px;">
-                <span class="cal-dot thinh"></span> Thịnh chạy
-              </span>
-              <span style="display: flex; align-items: center; gap: 4px;">
-                <span class="cal-dot bu"></span> Bu chạy
-              </span>
-              <span style="display: flex; align-items: center; gap: 4px;">
-                <span class="cal-dot" style="background: #CBD5E1;"></span> Trống / Nghỉ
-              </span>
-            </div>
-          </div>
-
-          <!-- Chi tiết khung giờ của ngày đang chọn -->
-          <div class="date-nav-bar">
-            <button class="date-nav-btn" onclick="app.prevScheduleDay()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span class="date-nav-title" id="selectedScheduleDateLabel">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <span id="scheduleDateText"></span>
-            </span>
-            <button class="date-nav-btn" onclick="app.nextScheduleDay()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-
-          <div class="card schedule-table-card">
-            <div class="schedule-header-row">
-              <span>Thời gian</span>
-              <span style="color: var(--driver-thinh);">Thịnh</span>
-              <span style="color: var(--driver-bu);">Bu</span>
-            </div>
-
-            <div class="schedule-list-rows" id="scheduleListRows">
-              <!-- Rendered via JS -->
-            </div>
-          </div>
-
-          <button class="btn-primary" onclick="app.openModal('scheduleModal')">
-            <span>+</span> Đăng ký / Nhận lịch
-          </button>
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 3: THU NHẬP
-             ============================================== -->
-        <article class="screen-view" id="screen-income">
-          <div class="pill-tabs">
-            <button class="pill-tab active" onclick="app.setIncomeTab(this, 'today')">Hôm nay</button>
-            <button class="pill-tab" onclick="app.setIncomeTab(this, 'week')">Tuần này</button>
-            <button class="pill-tab" onclick="app.setIncomeTab(this, 'month')">Tháng này</button>
-          </div>
-
-          <div class="card">
-            <div class="card-title-sm" style="margin-bottom: 6px;">Tổng thu nhập</div>
-            <div class="amount-large" id="incomeScreenTotal" style="margin-bottom: 12px;">620.000đ</div>
-
-            <div class="payment-split-grid">
-              <div class="split-item">
-                <div class="split-icon cash">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/></svg>
-                </div>
-                <div class="split-info">
-                  <span class="split-label">Tiền mặt</span>
-                  <span class="split-val" id="incomeScreenCash">320.000đ</span>
-                </div>
-              </div>
-
-              <div class="split-item">
-                <div class="split-icon transfer">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="21" x2="21" y2="21"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="5 6 12 3 19 6"/><line x1="4" y1="10" x2="4" y2="21"/><line x1="20" y1="10" x2="20" y2="21"/></svg>
-                </div>
-                <div class="split-info">
-                  <span class="split-label">Chuyển khoản</span>
-                  <span class="split-val" id="incomeScreenTransfer">300.000đ</span>
-                </div>
-              </div>
-            </div>
-
-            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; font-size: 13px;">
-              <span style="color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                Tổng số chuyến
-              </span>
-              <strong style="font-size: 15px;" id="incomeScreenTrips">12</strong>
-            </div>
-          </div>
-
           <div>
-            <div class="trip-list-header">
-              <span class="section-title-sm" style="margin-bottom: 0;">📅 Tổng kết theo ngày</span>
-            </div>
-
-            <div class="trips-container" id="tripsListContainer" style="margin-top: 8px;">
-              <!-- Rendered via JS -->
-            </div>
+            <label class="form-label">Giờ</label>
+            <input type="time" class="input-text-standard" id="addTimeInput" value="19:20">
           </div>
-
-          <button class="btn-primary" onclick="app.openDailyRevenueModal()">
-            <span>+</span> Ghi nhận doanh thu ngày
-          </button>
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 4: NOTE / CHỐT CUỐI NGÀY
-             ============================================== -->
-        <article class="screen-view" id="screen-notes">
-          <div class="pill-tabs">
-            <button class="pill-tab active" onclick="app.setNoteMainTab(this, 'note')">Note</button>
-            <button class="pill-tab" onclick="app.navigateToScreen('screen-images')">Hình ảnh</button>
-          </div>
-
-          <div class="date-nav-bar">
-            <button class="date-nav-btn" onclick="app.prevScheduleDay()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span class="date-nav-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <span id="notesDateText"></span> ▾
-            </span>
-            <button class="date-nav-btn" onclick="app.nextScheduleDay()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-
-          <!-- Quick Note Box -->
-          <div class="quick-note-box">
-            <textarea class="quick-note-input" id="quickNoteInput" placeholder="Ghi chú trong ngày..."></textarea>
-            <div class="quick-note-actions">
-              <div class="note-tools-left">
-                <button class="tool-btn" onclick="app.openModal('imageModal')">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                  Ảnh
-                </button>
-                <button class="tool-btn" onclick="app.recordVoiceNote()">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                  Giọng nói
-                </button>
-              </div>
-              <button class="btn-add-pill" onclick="app.submitQuickNote()">+ Thêm</button>
-            </div>
-          </div>
-
-          <!-- Timeline Notes -->
-          <div class="timeline-container" id="timelineNotesContainer">
-            <!-- Rendered via JS -->
-          </div>
-
-          <!-- CHỐT TÀI CHÍNH CUỐI NGÀY CARD -->
-          <div class="card" style="margin-top: 6px;">
-            <div class="card-title-sm" style="margin-bottom: 8px; color: var(--primary-green);">
-              💰 CHỐT TÀI CHÍNH CUỐI NGÀY
-            </div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
-              Dữ liệu tài chính tổng kết 2 tài xế (mỗi người tự đổ xăng và hưởng doanh thu của mình):
-            </div>
-            <div class="closing-table">
-              <div class="closing-row">
-                <span>Tổng doanh thu:</span>
-                <input type="text" class="form-input" id="finTotalRev" value="0đ" style="width: 130px; text-align: right; padding: 4px 8px; font-size: 13px; font-weight: 700;">
-              </div>
-              <div class="closing-row">
-                <span>Tiền mặt:</span>
-                <input type="text" class="form-input" id="finCash" value="0đ" style="width: 130px; text-align: right; padding: 4px 8px; font-size: 13px;">
-              </div>
-              <div class="closing-row">
-                <span>Chuyển khoản:</span>
-                <input type="text" class="form-input" id="finTransfer" value="0đ" style="width: 130px; text-align: right; padding: 4px 8px; font-size: 13px;">
-              </div>
-              <div class="closing-row">
-                <span>Tiền còn trong ví:</span>
-                <input type="text" class="form-input" id="finWallet" value="0đ" style="width: 130px; text-align: right; padding: 4px 8px; font-size: 13px; font-weight: 700; color: var(--primary-green);">
-              </div>
-              <div class="closing-row">
-                <span>Tiền xăng (Thịnh + Bu):</span>
-                <input type="text" class="form-input" id="finFuel" value="0đ" style="width: 130px; text-align: right; padding: 4px 8px; font-size: 13px;">
-              </div>
-              <div class="closing-row">
-                <span>Chi phí khác:</span>
-                <input type="text" class="form-input" id="finOther" value="0đ" style="width: 130px; text-align: right; padding: 4px 8px; font-size: 13px;">
-              </div>
-            </div>
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
-              <button class="btn-primary" style="flex: 2; padding: 10px;" onclick="app.saveFinancialClosing()">
-                ✓ Lưu Chốt Tài Chính
-              </button>
-              <button class="btn-primary" style="flex: 1; padding: 10px; background: #FEE2E2; color: #DC2626; border: 1px solid #F87171;" onclick="app.confirmResetClean()">
-                🔄 Reset 0đ
-              </button>
-            </div>
-          </div>
-
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 5: HÌNH ẢNH
-             ============================================== -->
-        <article class="screen-view" id="screen-images">
-          <div class="pill-tabs">
-            <button class="pill-tab active" onclick="app.setImageTab(this, 'today')">Trong ngày</button>
-            <button class="pill-tab" onclick="app.setImageTab(this, 'all')">Tất cả</button>
-          </div>
-
-          <div class="date-nav-bar">
-            <button class="date-nav-btn" onclick="app.prevScheduleDay()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-            </button>
-            <span class="date-nav-title">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0C7247" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              <span id="galleryDateText"></span> ▾
-            </span>
-            <button class="date-nav-btn" onclick="app.nextScheduleDay()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-
-          <div class="gallery-grid" id="galleryGrid">
-            <!-- Rendered via JS -->
-          </div>
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 6: BÁO CÁO
-             ============================================== -->
-        <article class="screen-view" id="screen-reports">
-          <div class="pill-tabs">
-            <button class="pill-tab active" onclick="app.setReportPeriod(this, 'today')">Hôm nay</button>
-            <button class="pill-tab" onclick="app.setReportPeriod(this, 'week')">Tuần này</button>
-            <button class="pill-tab" onclick="app.setReportPeriod(this, 'month')">Tháng này</button>
-            <button class="pill-tab" onclick="app.setReportPeriod(this, 'custom')">Tùy chọn</button>
-          </div>
-
-          <div class="card report-overview-card">
-            <div class="card-title-sm">Tổng quan (2 người)</div>
-            
-            <div class="payment-split-grid" style="border-top: none; padding-top: 0;">
-              <div>
-                <span class="split-label">Doanh thu</span>
-                <div class="amount-large" id="repOverviewRevenue" style="font-size: 20px;">0đ</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="repOverviewTrips">🚗 0 chuyến</div>
-              </div>
-              <div>
-                <span class="split-label">Tiền mặt</span>
-                <div class="amount-large" id="repOverviewCash" style="font-size: 20px;">0đ</div>
-                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="repOverviewTransfer">🏦 CK: 0đ</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Breakdown THỊNH & BU -->
-          <div class="driver-breakdown-grid">
-            
-            <!-- THỊNH -->
-            <div class="driver-stat-card">
-              <div class="driver-stat-header">
-                <div class="driver-avatar thinh" style="width: 28px; height: 28px; font-size: 12px;">T</div>
-                <span>Thịnh</span>
-              </div>
-              <div class="driver-stat-amount" id="repThinhAmount">0đ</div>
-              <div class="driver-stat-sub">
-                <div class="driver-stat-row">
-                  <span>Tiền mặt:</span>
-                  <strong id="repThinhCash">0đ</strong>
-                </div>
-                <div class="driver-stat-row">
-                  <span>Chuyển khoản:</span>
-                  <strong id="repThinhTransfer">0đ</strong>
-                </div>
-                <div class="driver-stat-row">
-                  <span>Số chuyến:</span>
-                  <strong id="repThinhTrips">0</strong>
-                </div>
-                <div class="driver-stat-row">
-                  <span>Giờ chạy:</span>
-                  <strong id="repThinhHours">0h 00p</strong>
-                </div>
-              </div>
-            </div>
-
-            <!-- BU -->
-            <div class="driver-stat-card">
-              <div class="driver-stat-header">
-                <div class="driver-avatar bu" style="width: 28px; height: 28px; font-size: 12px;">B</div>
-                <span>Bu</span>
-              </div>
-              <div class="driver-stat-amount" id="repBuAmount">0đ</div>
-              <div class="driver-stat-sub">
-                <div class="driver-stat-row">
-                  <span>Tiền mặt:</span>
-                  <strong id="repBuCash">0đ</strong>
-                </div>
-                <div class="driver-stat-row">
-                  <span>Chuyển khoản:</span>
-                  <strong id="repBuTransfer">0đ</strong>
-                </div>
-                <div class="driver-stat-row">
-                  <span>Số chuyến:</span>
-                  <strong id="repBuTrips">0</strong>
-                </div>
-                <div class="driver-stat-row">
-                  <span>Giờ chạy:</span>
-                  <strong id="repBuHours">0h 00p</strong>
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Biểu đồ doanh thu Chart.js (Thịnh vs Bu) -->
-          <div class="card chart-card">
-            <div class="card-header-row" style="margin-bottom: 8px;">
-              <span class="card-title-sm">📊 Doanh thu so sánh (Chart.js)</span>
-              <div class="chart-legend">
-                <div class="legend-item">
-                  <span class="legend-dot" style="background: var(--driver-thinh);"></span>
-                  <span>Thịnh</span>
-                </div>
-                <div class="legend-item">
-                  <span class="legend-dot" style="background: var(--driver-bu);"></span>
-                  <span>Bu</span>
-                </div>
-              </div>
-            </div>
-
-            <div style="position: relative; width: 100%; height: 220px;">
-              <canvas id="chartRevenueComparison"></canvas>
-            </div>
-          </div>
-
-          <!-- Biểu đồ phân bổ hình thức thanh toán & chi phí -->
-          <div class="card chart-card">
-            <div class="card-header-row" style="margin-bottom: 8px;">
-              <span class="card-title-sm">🥧 Phân bổ Tiền mặt & Chuyển khoản</span>
-            </div>
-            <div style="position: relative; width: 100%; height: 200px; display: flex; justify-content: center;">
-              <canvas id="chartPaymentDistribution"></canvas>
-            </div>
-          </div>
-
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 7: CHỐT NGÀY (CƠ CHẾ ĐỐI SOÁT TỰ CHỦ)
-             ============================================== -->
-        <article class="screen-view" id="screen-closing">
-          
-          <div style="display: flex; justify-content: center;">
-            <div class="badge-status" style="background: #FFFFFF; border: 1px solid var(--border-light); font-size: 12px; padding: 6px 14px;">
-              📅 <span id="closingDateLabel"></span>
-            </div>
-          </div>
-
-          <!-- Card Thịnh -->
-          <div class="card closing-driver-card">
-            <div class="closing-header">
-              <div class="closing-avatar-group">
-                <div class="driver-avatar thinh">T</div>
-                <strong style="font-size: 15px;">Thịnh</strong>
-              </div>
-              <span class="badge-status completed dot">Đã chốt</span>
-            </div>
-
-            <div class="closing-table">
-              <div class="closing-row">
-                <span>Tổng chuyến</span>
-                <strong style="color: var(--text-main);" id="closeThinhTrips">12</strong>
-              </div>
-              <div class="closing-row bold">
-                <span>Tổng doanh thu</span>
-                <span style="font-size: 15px; color: var(--text-main);" id="closeThinhRev">620.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Tiền mặt</span>
-                <span id="closeThinhCash">320.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Chuyển khoản</span>
-                <span id="closeThinhTransfer">300.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Tiền tip</span>
-                <span id="closeThinhTip">20.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Chi phí xăng (Thịnh tự đổ)</span>
-                <span style="color: var(--accent-red);" id="closeThinhFuel">-100.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Chi phí khác</span>
-                <span style="color: var(--accent-red);" id="closeThinhOther">-20.000đ</span>
-              </div>
-            </div>
-
-            <div class="closing-net-highlight">
-              <span class="closing-net-label">Thu nhập thực nhận Thịnh</span>
-              <span class="closing-net-val" id="closeThinhNet">520.000đ</span>
-            </div>
-          </div>
-
-          <!-- Card Bu -->
-          <div class="card closing-driver-card">
-            <div class="closing-header">
-              <div class="closing-avatar-group">
-                <div class="driver-avatar bu">B</div>
-                <strong style="font-size: 15px;">Bu</strong>
-              </div>
-              <span class="badge-status completed dot">Đã chốt</span>
-            </div>
-
-            <div class="closing-table">
-              <div class="closing-row">
-                <span>Tổng chuyến</span>
-                <strong style="color: var(--text-main);" id="closeBuTrips">10</strong>
-              </div>
-              <div class="closing-row bold">
-                <span>Tổng doanh thu</span>
-                <span style="font-size: 15px; color: var(--text-main);" id="closeBuRev">540.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Tiền mặt</span>
-                <span id="closeBuCash">280.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Chuyển khoản</span>
-                <span id="closeBuTransfer">260.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Tiền tip</span>
-                <span id="closeBuTip">15.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Chi phí xăng (Bu tự đổ)</span>
-                <span style="color: var(--accent-red);" id="closeBuFuel">-90.000đ</span>
-              </div>
-              <div class="closing-row">
-                <span>Chi phí khác</span>
-                <span style="color: var(--accent-red);" id="closeBuOther">-10.000đ</span>
-              </div>
-            </div>
-
-            <div class="closing-net-highlight">
-              <span class="closing-net-label">Thu nhập thực nhận Bu</span>
-              <span class="closing-net-val" id="closeBuNet">445.000đ</span>
-            </div>
-          </div>
-
-          <!-- THẺ ĐỐI SOÁT & QUYẾT TOÁN BÙ TRỪ SPLIIT -->
-          <div class="card spliit-card" style="border: 2px solid #10B981; background: #F0FDF4;">
-            <div class="card-header-row" style="margin-bottom: 6px;">
-              <span class="card-title-sm" style="color: var(--primary-green); font-weight: 800;">
-                ⚡ ĐỐI SOÁT & QUYẾT TOÁN (SPLIIT ENGINE)
-              </span>
-              <span class="badge-status running" id="spliitStatusBadge">Chờ quyết toán</span>
-            </div>
-            <p style="font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px;">
-              Tự động bù trừ chéo: Tiền mặt thu hộ khách, chi phí sửa xe/nhớt chia 50-50, và tiền xăng cá nhân:
-            </p>
-
-            <div class="spliit-breakdown-box" style="background: #FFFFFF; border-radius: 10px; padding: 12px; border: 1px solid #BBF7D0; font-size: 13px; display: flex; flex-direction: column; gap: 6px;">
-              <div style="display: flex; justify-content: space-between;">
-                <span>💵 Tiền mặt Thịnh đang cầm:</span>
-                <strong id="closeDoiSoatCashThinh">0đ</strong>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span>💵 Tiền mặt Bu đang cầm:</span>
-                <strong id="closeDoiSoatCashBu">0đ</strong>
-              </div>
-              <div style="display: flex; justify-content: space-between;">
-                <span>🛠️ Chi phí xe chung (chia đôi 50%):</span>
-                <strong id="spliitSharedExpense">0đ</strong>
-              </div>
-              <div style="border-top: 1.5px dashed #CBD5E1; margin-top: 6px; padding-top: 8px; font-weight: 700; color: #0C7247; font-size: 14px;" id="closeDoiSoatKetLuan">
-                👉 Kết luận: Hai bên sòng phẳng (0đ)!
-              </div>
-            </div>
-
-            <div style="display: flex; gap: 8px; margin-top: 10px;">
-              <button type="button" class="btn-primary" style="background: #0C7247; flex: 1; padding: 10px 14px; font-size: 13px;" onclick="app.handleSettleUp()">
-                ✓ Xác nhận đã chuyển khoản / Sòng phẳng
-              </button>
-            </div>
-          </div>
-
-          <!-- THẺ NHẬP THÔNG SỐ CHỐT CUỐI NGÀY -->
-          <div class="card">
-            <div class="card-title-sm" style="margin-bottom: 8px;">
-              <span>📝</span> Nhập thông số chốt cuối ngày
-            </div>
-            <div class="closing-table">
-              <div class="closing-row">
-                <span>Ví còn lại:</span>
-                <input type="number" class="form-input" id="closeInputWallet" placeholder="VD: 100000" style="width: 130px; text-align: right; padding: 4px 8px; font-weight: 700; color: var(--primary-green);">
-              </div>
-              <div class="closing-row">
-                <span>Tiền xăng:</span>
-                <input type="number" class="form-input" id="closeInputFuel" placeholder="VD: 30000" style="width: 130px; text-align: right; padding: 4px 8px;">
-              </div>
-              <div class="closing-row">
-                <span>Chi phí khác:</span>
-                <input type="number" class="form-input" id="closeInputOther" placeholder="VD: 10000" style="width: 130px; text-align: right; padding: 4px 8px;">
-              </div>
-            </div>
-          </div>
-
-          <button class="btn-primary" onclick="app.executeDailyClose()">
-            <span>✓</span> Xác nhận chốt ngày
-          </button>
-
-          <!-- PHẦN 12: LỊCH SỬ CÁC NGÀY ĐÃ CHỐT -->
-          <div class="card" style="margin-top: 10px;">
-            <div class="card-title-sm" style="margin-bottom: 8px; justify-content: space-between;">
-              <span style="display: flex; align-items: center; gap: 6px;">
-                <span>📜</span> Lịch sử các ngày đã chốt
-              </span>
-              <span id="closedHistoryCount" style="font-size: 11px; background: #F1F5F9; padding: 2px 8px; border-radius: 10px;">0 ngày</span>
-            </div>
-            <div id="closedHistoryContainer" style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 10px;">Chưa có ngày nào được chốt</div>
-            </div>
-          </div>
-
-        </article>
-
-
-        <!-- ==============================================
-             SCREEN 8: MÀN HÌNH HÔM NAY
-             ============================================== -->
-        <article class="screen-view" id="screen-today">
-          
-          <div class="today-banner">
-            <div class="today-quote">“Cố gắng mỗi ngày để ngày mai tốt hơn!”</div>
-            <div class="today-scooter-art">
-              <svg viewBox="0 0 24 24" fill="#FFFFFF" width="48" height="48">
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="18" r="3"/>
-                <path d="M6 15h5l3-6h4v2h-3l-2 4h5a1 1 0 0 1 1 1v2h-2a3 3 0 0 0-6 0H9a3 3 0 0 0-6 0H1v-2a1 1 0 0 1 1-1h4z"/>
-                <path d="M14 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-              </svg>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-title-sm" style="margin-bottom: 12px; color: var(--primary-green);">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Tóm tắt
-            </div>
-
-            <div class="today-summary-list">
-              <div class="today-sum-row">
-                <span class="label">🚗 Tổng chuyến</span>
-                <span class="val" id="todaySumTrips">22</span>
-              </div>
-              <div class="today-sum-row">
-                <span class="label">💰 Tổng doanh thu</span>
-                <span class="val" id="todaySumRev">1.160.000đ</span>
-              </div>
-              <div class="today-sum-row">
-                <span class="label">💵 Tiền mặt</span>
-                <span class="val" id="todaySumCash">600.000đ</span>
-              </div>
-              <div class="today-sum-row">
-                <span class="label">💳 Chuyển khoản</span>
-                <span class="val" id="todaySumTransfer">560.000đ</span>
-              </div>
-              <div class="today-sum-row">
-                <span class="label">⛽ Chi phí xăng</span>
-                <span class="val" id="todaySumFuel">190.000đ</span>
-              </div>
-              <div class="today-sum-row">
-                <span class="label">🔧 Chi phí khác</span>
-                <span class="val" id="todaySumOther">30.000đ</span>
-              </div>
-            </div>
-
-            <div class="closing-net-highlight" style="margin-top: 12px;">
-              <span class="closing-net-label" id="todaySumNetLabel">Thu nhập thực nhận 2 người</span>
-              <span class="closing-net-val" id="todaySumNet">965.000đ</span>
-            </div>
-          </div>
-
-          <div class="card wallet-card" onclick="app.openWalletDetails()">
-            <div class="wallet-left">
-              <div class="wallet-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12a2 2 0 0 0 2 2h14v-4"/><circle cx="18" cy="14" r="1"/></svg>
-              </div>
-              <div>
-                <span style="font-size: 11px; color: var(--text-muted);">Ví còn lại</span>
-                <div class="wallet-amount" id="todayWalletRemaining">620.000đ</div>
-              </div>
-            </div>
-            <span style="color: var(--text-muted); font-size: 18px;">&gt;</span>
-          </div>
-
-          <div class="card">
-            <div class="card-title-sm" style="margin-bottom: 8px;">
-              <span>💡</span> Note nổi bật
-            </div>
-            <ul style="padding-left: 18px; font-size: 13px; color: var(--text-main); display: flex; flex-direction: column; gap: 6px;">
-              <li>Khách chuyển khoản sau 50k</li>
-              <li>Đổ xăng 100k</li>
-              <li>Có khoản cần kiểm tra lại</li>
-            </ul>
-          </div>
-
-        </article>
-
-      </div> <!-- /app-content -->
-
-      <!-- ==============================================
-           BOTTOM NAVIGATION (Full Width Bar, Cân Đối Các Tab)
-           ============================================== -->
-      <nav class="bottom-nav">
-        <div class="bottom-nav-inner">
-          <button class="nav-item active" data-target="screen-overview" onclick="app.navigateToScreen('screen-overview')">
-            <div class="nav-icon-box">
-              <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            </div>
-            <span>Tổng quan</span>
-          </button>
-
-          <button class="nav-item" data-target="screen-schedule" onclick="app.navigateToScreen('screen-schedule')">
-            <div class="nav-icon-box">
-              <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </div>
-            <span>Lịch chạy</span>
-          </button>
-
-          <!-- NÚT THAO TÁC NHANH NỔI BẬT DẠNG FAB Ở GIỮA -->
-          <button class="nav-item nav-fab-btn" onclick="app.openBottomSheet()" title="Thao tác nhanh">
-            <div class="nav-fab-circle">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </div>
-            <span>Thêm</span>
-          </button>
-
-          <button class="nav-item" data-target="screen-income" onclick="app.navigateToScreen('screen-income')">
-            <div class="nav-icon-box">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M15 9.5a2.5 2.5 0 0 0-5 0c0 4 5 1 5 5a2.5 2.5 0 0 1-5 0"/></svg>
-            </div>
-            <span>Thu nhập</span>
-          </button>
-
-          <button class="nav-item" data-target="screen-closing" onclick="app.navigateToScreen('screen-closing')">
-            <div class="nav-icon-box">
-              <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            </div>
-            <span>Chốt ca</span>
-          </button>
         </div>
-      </nav>
 
-      <!-- Toast Notification -->
-      <div class="toast-notice" id="toastNotice">
-        <span id="toastText">Đã cập nhật dữ liệu!</span>
-      </div>
-
-      <!-- ==============================================
-           BOTTOM SHEET MODAL (NÚT THÊM "+")
-           ============================================== -->
-      <div class="modal-overlay" id="bottomSheetModal" onclick="app.closeBottomSheet(event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Thao tác nhanh</div>
-
-          <div class="sheet-actions-grid">
-            <div class="action-card-btn" onclick="app.openDailyRevenueModal(); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #E8F5E9; color: var(--primary-green);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-              </div>
-              <span>Ghi nhận doanh thu</span>
+        <!-- Tài khoản & Người thực hiện -->
+        <!-- Tài khoản thanh toán (Ngân hàng / Tiền mặt) -->
+        <div class="form-group">
+          <label class="form-label">Tài khoản thanh toán</label>
+          <div class="segmented-control" style="margin-bottom: 0;">
+            <div class="segmented-tab active" id="tabAccBank" onclick="app.selectAccount('Ngân hàng')">
+              <i data-lucide="landmark" style="width: 15px; height: 15px; vertical-align: middle; margin-right: 4px;"></i> Ngân hàng
             </div>
-
-            <div class="action-card-btn" onclick="app.openModal('scheduleModal'); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #E7F5FF; color: var(--accent-blue);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
-              </div>
-              <span>Đăng ký lịch</span>
-            </div>
-
-            <div class="action-card-btn" onclick="app.openModal('noteModal'); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #FFF9DB; color: #F59F00;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              </div>
-              <span>Thêm note</span>
-            </div>
-
-            <div class="action-card-btn" onclick="app.openModal('imageModal'); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #F3F0FF; color: #7950F2;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              </div>
-              <span>Chụp ảnh chốt</span>
-            </div>
-
-            <div class="action-card-btn" onclick="app.openModal('expenseModal'); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #FFE3E3; color: var(--accent-red);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 2v20"/><path d="M18 10h4l-2 5h-2"/><rect x="3" y="6" width="12" height="16" rx="2"/></svg>
-              </div>
-              <span>Đổ xăng / Chi phí</span>
-            </div>
-
-            <div class="action-card-btn" onclick="app.navigateToScreen('screen-closing'); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #E6F7ED; color: var(--primary-green);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <span>Chốt sổ ngày</span>
-            </div>
-
-            <div class="action-card-btn" onclick="app.openMaintenanceModal(); app.closeBottomSheet();">
-              <div class="action-icon" style="background: #E0F2FE; color: #0284C7;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-              </div>
-              <span>Bảo dưỡng xe</span>
+            <div class="segmented-tab" id="tabAccCash" onclick="app.selectAccount('Tiền mặt')">
+              <i data-lucide="banknote" style="width: 15px; height: 15px; vertical-align: middle; margin-right: 4px;"></i> Tiền mặt
             </div>
           </div>
         </div>
-      </div>
+
+        <div class="form-group">
+          <label class="form-label">Người thực hiện</label>
+          <div class="select-row-card">
+            <div class="select-row-left">
+              <i data-lucide="user" style="color: var(--primary-green); width: 18px; height: 18px;"></i>
+              <span>Bạn</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+        </div>
+
+        <!-- Đính kèm hóa đơn (OCR & Thêm ảnh) -->
+        <div class="form-group">
+          <label class="form-label">Đính kèm hóa đơn</label>
+          <div class="receipt-upload-row">
+            <div class="receipt-dashed-box" onclick="document.getElementById('receiptOcrUpload').click()">
+              <i data-lucide="camera" style="width: 24px; height: 24px;"></i>
+              <span class="receipt-box-label">Quét hóa đơn</span>
+            </div>
+            <div class="receipt-dashed-box" onclick="document.getElementById('receiptImgUpload').click()">
+              <i data-lucide="image" style="width: 24px; height: 24px;"></i>
+              <span class="receipt-box-label">Thêm ảnh</span>
+            </div>
+          </div>
+          <!-- Hidden inputs for upload & OCR -->
+          <input type="file" id="receiptOcrUpload" accept="image/*" style="display: none;" onchange="app.handleReceiptScan(event)">
+          <input type="file" id="receiptImgUpload" accept="image/*" style="display: none;" onchange="app.handleReceiptImage(event)">
+          <div id="ocrStatusNotice" style="display:none; font-size: 11px; color: var(--primary-green); margin-top: 6px; font-weight: 600;"></div>
+        </div>
+
+        <!-- Nhập nhanh Chips -->
+        <label class="form-label">Nhập nhanh</label>
+        <div class="quick-tags-row">
+          <span class="quick-chip" onclick="app.quickFill('+ 50k tiền Grab', 50000, 'Grab', 'income')">+ 50k tiền Grab</span>
+          <span class="quick-chip" onclick="app.quickFill('+ 2m tiền lương', 2000000, 'Lương', 'income')">+ 2m tiền lương</span>
+          <span class="quick-chip" onclick="app.quickFill('+ 100k xăng', 100000, 'Xăng xe', 'expense')">+ 100k xăng xe</span>
+          <span class="quick-chip" onclick="app.quickFill('+ 45k cà phê', 45000, 'Cà phê', 'expense')">+ 45k cà phê</span>
+        </div>
+
+        <!-- Nút Submit lớn -->
+        <button class="btn-primary" onclick="app.submitNewTransaction()">
+          THÊM GIAO DỊCH
+        </button>
+      </section>
 
 
-      <!-- ==============================================
-           MODAL: GHI NHẬN DOANH THU NGÀY
-           ============================================== -->
-      <div class="modal-overlay" id="dailyRevenueModal" onclick="app.closeModal('dailyRevenueModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">💰 Ghi nhận doanh thu ngày</div>
+      <!-- ===================================================
+           5. SCREEN: RANKING (🏆 RANKING - DARK THEME)
+           =================================================== -->
+      <section class="app-screen" id="screen-ranking">
+        <div class="ranking-container-theme">
+          <div class="ranking-header">
+            <h2 class="ranking-title">🏆 Ranking</h2>
+          </div>
 
-          <!-- Nút Quét Ảnh OCR — Doanh thu ngày từ app Grab Driver -->
-          <div style="background: #F0FDF4; border: 1px dashed var(--primary-green); border-radius: 12px; padding: 10px; margin-bottom: 12px; text-align: center;">
-            <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--primary-green); font-size: 13px; font-weight: 700;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>📷 Quét từ ảnh tổng kết Grab Driver</span>
-              <input type="file" accept="image/*" style="display: none;" onchange="app.handleOcrScanDailyRevenue(this)">
+          <!-- Tabs: Tổng thu nhập | Thu nhập ròng | Tăng trưởng -->
+          <div class="segmented-control" style="background: #1F2937; border-color: #374151;">
+            <div class="segmented-tab active" onclick="app.setRankingMetric('total_income', this)">Tổng thu nhập</div>
+            <div class="segmented-tab" onclick="app.setRankingMetric('net_income', this)">Thu nhập ròng</div>
+            <div class="segmented-tab" onclick="app.setRankingMetric('growth', this)">Tăng trưởng</div>
+          </div>
+
+          <!-- Filter: Hôm nay | Tuần này | Tháng này | Năm nay -->
+          <div class="segmented-control" style="background: #111827; border-color: #243042;">
+            <div class="segmented-tab" onclick="app.setRankingPeriod('today', this)">Hôm nay</div>
+            <div class="segmented-tab active" onclick="app.setRankingPeriod('this_week', this)">Tuần này</div>
+            <div class="segmented-tab" onclick="app.setRankingPeriod('this_month', this)">Tháng này</div>
+            <div class="segmented-tab" onclick="app.setRankingPeriod('this_year', this)">Năm nay</div>
+          </div>
+
+          <!-- Leaderboard List -->
+          <div id="rankingListContainer">
+            <!-- Render từ JS: #1 Nguyễn Văn A, #2 Trần Minh B, #3 Lê Hoàng C, #4 Nguyễn Từ Đức, #5 Phạm Thị D -->
+          </div>
+
+          <!-- Thông báo Ranking -->
+          <div class="ranking-alert-pill" id="rankAlertPill">
+            <i data-lucide="bell" style="width: 16px; height: 16px;"></i>
+            <span id="rankAlertText">Bạn đang dẫn đầu bảng xếp hạng cá nhân! 🎉</span>
+          </div>
+
+          <!-- Toggle switch: Ẩn thông tin cá nhân -->
+          <div class="ranking-privacy-switch">
+            <span>Ẩn thông tin cá nhân</span>
+            <label class="switch">
+              <input type="checkbox" id="rankPrivacyToggle" onchange="app.toggleRankPrivacy(this.checked)">
+              <span class="slider"></span>
             </label>
-            <div id="ocrDrScanningNotice" style="display: none; margin-top: 8px;">
-              <div style="font-size: 11.5px; color: #0C7247; font-weight: 700; display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span id="ocrDrStatusText">⏳ Tesseract OCR: Đang quét...</span>
-                <span id="ocrDrPercentText">0%</span>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           6. SCREEN: NHÓM CỦA TÔI
+           =================================================== -->
+      <section class="app-screen" id="screen-groups">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Nhóm của tôi</h2>
+        </div>
+
+        <!-- Featured Group: Gia đình (1 thành viên) -->
+        <div class="featured-group-card" onclick="app.navTo('screen-group-detail')">
+          <div class="featured-group-header">
+            <div class="featured-group-avatar-box">
+              <div class="group-avatar-circle" style="background: #10B981;">
+                <i data-lucide="users" style="width: 22px; height: 22px;"></i>
               </div>
-              <div style="background: #DCFCE7; height: 6px; border-radius: 3px; overflow: hidden;">
-                <div id="ocrDrProgressBarFill" style="background: #0C7247; width: 0%; height: 100%; transition: width 0.2s ease;"></div>
+              <div>
+                <div class="group-title-bold" id="featuredGroupName">Gia đình</div>
+                <div class="group-members-count" id="featuredGroupCount">1 thành viên</div>
               </div>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 18px; height: 18px;"></i>
+          </div>
+
+          <div class="group-stats-row">
+            <div>
+              <div class="group-stat-lbl">Tổng thu nhập</div>
+              <div class="group-stat-val" style="color: var(--primary-green);" id="grpTotalInc">0đ</div>
+            </div>
+            <div>
+              <div class="group-stat-lbl">Tổng chi tiêu</div>
+              <div class="group-stat-val" style="color: var(--accent-red);" id="grpTotalExp">0đ</div>
+            </div>
+            <div>
+              <div class="group-stat-lbl">Tiết kiệm</div>
+              <div class="group-stat-val" style="color: var(--primary-green);" id="grpTotalSav">0đ</div>
             </div>
           </div>
 
-          <form id="dailyRevenueForm" onsubmit="app.handleSaveDailyRevenue(event)">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Người chạy</label>
-              <select class="form-select" id="drDriverSelect">
-                <option value="thinh">Thịnh</option>
-                <option value="bu">Bu</option>
-              </select>
-            </div>
+          <div class="avatar-stack-wrap" id="featuredGroupAvatars">
+            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80" class="avatar-stack-item">
+          </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Ngày</label>
-              <input type="date" class="form-input" id="drDateInput" required>
-            </div>
-
-            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-              <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                <label class="form-label">💵 Tiền mặt (VNĐ)</label>
-                <input type="number" class="form-input" id="drCashInput" placeholder="0" step="1000" min="0">
-              </div>
-              <div class="form-group" style="flex: 1; margin-bottom: 0;">
-                <label class="form-label">💳 Chuyển khoản (VNĐ)</label>
-                <input type="number" class="form-input" id="drTransferInput" placeholder="0" step="1000" min="0">
-              </div>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label">Số chuyến (tùy chọn)</label>
-              <input type="number" class="form-input" id="drTripsInput" placeholder="VD: 12" min="0">
-            </div>
-
-            <button type="submit" class="btn-primary">✓ Lưu doanh thu ngày</button>
-          </form>
+          <button class="btn-outline" onclick="event.stopPropagation(); app.showToast('Mời thành viên hoặc tạo nhóm mới!')">
+            + Tạo nhóm mới
+          </button>
         </div>
-      </div>
 
-      <!-- ==============================================
-           MODAL: ĐĂNG KÝ / NHẬN LỊCH
-           ============================================== -->
-      <div class="modal-overlay" id="scheduleModal" onclick="app.closeModal('scheduleModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Đăng Ký Khung Giờ Chạy Xe</div>
-          <p style="font-size: 11px; color: var(--text-muted); text-align: center; margin-top: -6px;">
-            ⚠️ Lưu ý: 1 xe Air Blade (59E2-059.57). Không được trùng ca!
-          </p>
-
-          <form id="addScheduleForm" onsubmit="app.handleSaveSchedule(event)">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Tài xế đăng ký</label>
-              <select class="form-select" id="scheduleDriverSelect">
-                <option value="thinh">Thịnh</option>
-                <option value="bu">Bu</option>
-              </select>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Chọn khung giờ</label>
-              <select class="form-select" id="scheduleTimeSlotSelect">
-                <option value="05:00 - 08:00">05:00 - 08:00</option>
-                <option value="08:00 - 11:00">08:00 - 11:00</option>
-                <option value="11:00 - 13:00">11:00 - 13:00</option>
-                <option value="13:00 - 16:00">13:00 - 16:00</option>
-                <option value="16:00 - 19:00">16:00 - 19:00</option>
-                <option value="19:00 - 22:00">19:00 - 22:00</option>
-                <option value="22:00 - 00:00">22:00 - 00:00</option>
-              </select>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label">Trạng thái</label>
-              <select class="form-select" id="scheduleStatusSelect">
-                <option value="completed">Đã chạy</option>
-                <option value="available">Sẵn sàng nhận</option>
-                <option value="off">Nghỉ</option>
-              </select>
-            </div>
-
-            <button type="submit" class="btn-primary">
-              ✓ Xác Nhận Đăng Ký
-            </button>
-          </form>
+        <div class="section-title">Nhóm của tôi</div>
+        <div class="menu-list-card" id="groupsListMenu">
+          <!-- Render từ JS: Team Grab, Bạn bè, Phòng trọ, Team công việc -->
         </div>
-      </div>
+      </section>
 
-      <!-- ==============================================
-           MODAL: THÊM ẢNH CHỐT SỔ / HÓA ĐƠN
-           ============================================== -->
-      <div class="modal-overlay" id="imageModal" onclick="app.closeModal('imageModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Thêm Ảnh Chốt Sổ / Chứng Từ</div>
 
-          <form id="addImageForm" onsubmit="app.handleSaveImage(event)">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Tiêu đề ảnh</label>
-              <input type="text" class="form-input" id="imgTitleInput" placeholder="VD: Ảnh chốt đơn, GD ngân hàng, Đổ xăng..." required>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Thời điểm chụp</label>
-              <input type="time" class="form-input" id="imgTimeInput" required>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Loại ảnh mẫu</label>
-              <select class="form-select" id="imgCategorySelect" onchange="app.handleImgCategoryChange(this)">
-                <option value="app_summary">Ảnh chốt đơn app Grab</option>
-                <option value="bank_transfer">GD ngân hàng</option>
-                <option value="fuel_pump">Cột bơm xăng</option>
-                <option value="odometer">Đồng hồ xe (ODO)</option>
-                <option value="receipt">Hóa đơn chi phí</option>
-                <option value="custom_file">Chọn tệp ảnh từ máy...</option>
-              </select>
-            </div>
-
-            <div class="form-group" id="fileUploadContainer" style="display: none; margin-bottom: 14px;">
-              <label class="form-label">Tải tệp ảnh</label>
-              <input type="file" accept="image/*" class="form-input" id="imgFileInput">
-            </div>
-
-            <button type="submit" class="btn-primary">
-              ✓ Lưu Ảnh Chứng Từ
-            </button>
-          </form>
+      <!-- ===================================================
+           7. SCREEN: PHÂN TÍCH NHÓM
+           =================================================== -->
+      <section class="app-screen" id="screen-group-detail">
+        <div class="screen-header-bar">
+          <button class="btn-header-back" onclick="app.goBack()">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+          </button>
+          <h2 class="screen-header-title" style="flex: 1; text-align: center; margin-right: 36px;">Phân tích nhóm</h2>
         </div>
-      </div>
 
-      <!-- ==============================================
-           MODAL: GHI NHẬN ĐỔ XĂNG & CHI PHÍ
-           ============================================== -->
-      <div class="modal-overlay" id="expenseModal" onclick="app.closeModal('expenseModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Ghi Nhận Đổ Xăng & Chi Phí</div>
+        <!-- Group Top Banner -->
+        <div class="ui-card" style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="category-icon-circle" style="background: #D1FAE5; color: #10B981;">
+              <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+            </div>
+            <div>
+              <div style="font-size: 15px; font-weight: 800; color: var(--text-main);" id="grpDetailBannerName">Gia đình</div>
+              <div style="font-size: 12px; color: var(--text-muted);" id="grpDetailBannerCount">1 thành viên</div>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+        </div>
 
-          <!-- Nút Quét Hóa Đơn Xăng / Sửa Xe OCR Nhanh -->
-          <div style="background: #EFF6FF; border: 1px dashed #2563EB; border-radius: 12px; padding: 10px; margin-bottom: 12px; text-align: center;">
-            <label style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: #2563EB; font-size: 13px; font-weight: 700;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              <span>📷 Quét hóa đơn xăng / sửa xe (Tesseract.js)</span>
-              <input type="file" accept="image/*" style="display: none;" onchange="app.handleOcrScanExpense(this)">
+        <!-- Period Toggle: Tuần | Tháng | Năm -->
+        <div class="segmented-control">
+          <div class="segmented-tab" onclick="app.setGroupPeriod('week', this)">Tuần</div>
+          <div class="segmented-tab active" onclick="app.setGroupPeriod('month', this)">Tháng</div>
+          <div class="segmented-tab" onclick="app.setGroupPeriod('year', this)">Năm</div>
+        </div>
+
+        <!-- Thống kê tổng quan -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 12px;">Thống kê tổng quan</div>
+          <div class="metrics-two-row" style="margin-bottom: 8px;">
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Tổng thu nhập</div>
+              <div style="font-size: 16px; font-weight: 800; color: var(--primary-green);" id="grpDetailIncome">0đ</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Tổng chi tiêu</div>
+              <div style="font-size: 16px; font-weight: 800; color: var(--accent-red);" id="grpDetailExpense">0đ</div>
+            </div>
+          </div>
+          <div style="margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border-subtle);">
+            <div style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Tiết kiệm</div>
+            <div style="font-size: 17px; font-weight: 800; color: var(--primary-green);" id="grpDetailSavings">0đ</div>
+          </div>
+        </div>
+
+        <!-- Đóng góp theo thành viên -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 12px;">Đóng góp theo thành viên</div>
+          <div id="groupMembersContribList">
+            <!-- Render từ JS: Nhân (32%), A (28%), B (24%), C (16%) -->
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           8. SCREEN: QUẢN LÝ NGÂN SÁCH
+           =================================================== -->
+      <section class="app-screen" id="screen-budgets">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Ngân sách</h2>
+        </div>
+
+        <div class="calendar-month-selector">
+          <button class="btn-arrow-nav">‹</button>
+          <span class="month-selector-title">Tháng 9/2026</span>
+          <button class="btn-arrow-nav">›</button>
+        </div>
+
+        <!-- Danh sách ngân sách theo danh mục -->
+        <div id="budgetItemsList">
+          <!-- Render từ JS: Ăn uống (64%), Xăng xe (60%), Mua sắm (70%), Giải trí (53%), Nhà ở (90%) -->
+        </div>
+
+        <!-- Cảnh báo banner vàng -->
+        <div class="alert-warning-banner" id="budgetWarningBanner" style="display: none;">
+          <i data-lucide="alert-triangle" style="width: 18px; height: 18px; flex-shrink: 0;"></i>
+          <span id="budgetWarningText">Cảnh báo ngân sách</span>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           9. SCREEN: MỤC TIÊU TÀI CHÍNH
+           =================================================== -->
+      <section class="app-screen" id="screen-goals">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Mục tiêu tài chính</h2>
+        </div>
+
+        <!-- Danh sách mục tiêu: MacBook, Du lịch Nhật Bản, Mua xe máy, Quỹ khẩn cấp -->
+        <div id="goalsCardsList">
+          <!-- Render từ JS -->
+        </div>
+
+        <button class="btn-outline" style="margin-top: 6px;" onclick="app.openNewGoalModal()">
+          <i data-lucide="plus" style="width: 18px; height: 18px;"></i>
+          Tạo mục tiêu mới
+        </button>
+      </section>
+
+
+      <!-- ===================================================
+           10. SCREEN: BIỂU ĐỒ PHÂN TÍCH (ANALYTICS)
+           =================================================== -->
+      <section class="app-screen" id="screen-analytics">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Phân tích</h2>
+        </div>
+
+        <!-- Period Toggle: Tuần | Tháng | Năm -->
+        <div class="segmented-control">
+          <div class="segmented-tab" onclick="app.setAnalyticsPeriod('week', this)">Tuần</div>
+          <div class="segmented-tab active" onclick="app.setAnalyticsPeriod('month', this)">Tháng</div>
+          <div class="segmented-tab" onclick="app.setAnalyticsPeriod('year', this)">Năm</div>
+        </div>
+
+        <!-- Bar Chart: Thu nhập vs Chi tiêu -->
+        <div class="chart-card">
+          <div class="chart-card-title" style="margin-bottom: 8px;">Thu nhập vs Chi tiêu</div>
+          <div style="display: flex; gap: 14px; font-size: 11px; color: var(--text-muted); margin-bottom: 12px;">
+            <span style="display: flex; align-items: center; gap: 4px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-green);"></span>
+              Thu nhập
+            </span>
+            <span style="display: flex; align-items: center; gap: 4px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-red);"></span>
+              Chi tiêu
+            </span>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="analyticsBarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Donut / Pie Chart: Chi tiêu theo danh mục -->
+        <div class="chart-card">
+          <div class="chart-card-title" style="margin-bottom: 12px;">Chi tiêu theo danh mục</div>
+          <div class="chart-canvas-wrap" style="height: 220px;">
+            <canvas id="analyticsCategoryPie"></canvas>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           11. SCREEN: NGUỒN THU NHẬP
+           =================================================== -->
+      <section class="app-screen" id="screen-income-sources">
+        <div class="screen-header-bar">
+          <button class="btn-header-back" onclick="app.goBack()">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+          </button>
+          <h2 class="screen-header-title" style="flex: 1; text-align: center; margin-right: 36px;">Nguồn thu nhập</h2>
+        </div>
+
+        <!-- Tổng thu nhập tháng này Card -->
+        <div class="ui-card">
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Tổng thu nhập tháng này</div>
+          <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px;">
+            <div style="font-size: 24px; font-weight: 800; color: var(--text-main);" id="incomeSourcesTotal">0đ</div>
+            <span class="pill-badge pill-green" id="incomeSourcesBadge">+0%</span>
+          </div>
+        </div>
+
+        <!-- Danh sách Nguồn thu nhập kèm progress bar -->
+        <div class="ui-card" id="incomeSourcesList">
+          <!-- Render từ JS: Công việc (43%), Grab (36%), Kinh doanh (24%), Freelance (6%), Khác (3%) -->
+        </div>
+
+        <!-- Tỷ lệ nguồn thu nhập Pie chart -->
+        <div class="chart-card">
+          <div class="chart-card-title" style="margin-bottom: 12px;">Tỷ lệ nguồn thu nhập</div>
+          <div class="chart-canvas-wrap" style="height: 200px;">
+            <canvas id="incomeSourcesPie"></canvas>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           12. SCREEN: TÀI KHOẢN / VÍ
+           =================================================== -->
+      <section class="app-screen" id="screen-wallets">
+        <div class="screen-header-bar">
+          <button class="btn-header-back" onclick="app.goBack()">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+          </button>
+          <h2 class="screen-header-title" style="flex: 1; text-align: center; margin-right: 36px;">Tài khoản / Ví</h2>
+        </div>
+
+        <!-- Tổng số dư -->
+        <div class="ui-card" style="margin-bottom: 12px;">
+          <div style="font-size: 12px; font-weight: 600; color: var(--text-muted);">Tổng số dư</div>
+          <div style="font-size: 26px; font-weight: 800; color: var(--text-main); margin-top: 4px;" id="walletsTotalBalance">0đ</div>
+        </div>
+
+        <!-- 2 Accounts Grid: Tiền mặt, Ngân hàng -->
+        <div class="accounts-grid-2x2" id="walletsGrid2x2">
+          <!-- Render từ JS -->
+        </div>
+
+        <!-- Giao dịch gần đây theo ví -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 8px;">Giao dịch gần đây</div>
+          <div id="walletsRecentTxList">
+            <!-- Render từ JS -->
+          </div>
+        </div>
+
+        <!-- Action Button -->
+        <div style="margin-top: 14px;">
+          <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="app.openTransferModal()">
+            <i data-lucide="repeat" style="width: 18px; height: 18px;"></i>
+            Chuyển tiền giữa Tiền mặt & Ngân hàng
+          </button>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           13. SCREEN: THÔNG BÁO
+           =================================================== -->
+      <section class="app-screen" id="screen-notifications">
+        <div class="screen-header-bar">
+          <button class="btn-header-back" onclick="app.goBack()">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+          </button>
+          <h2 class="screen-header-title" style="flex: 1; text-align: center; margin-right: 36px;">Thông báo</h2>
+        </div>
+
+        <!-- Filter tabs: Tất cả | Giao dịch | Ngân sách | Nhóm -->
+        <div class="segmented-control">
+          <div class="segmented-tab active" onclick="app.filterNotifs('all', this)">Tất cả</div>
+          <div class="segmented-tab" onclick="app.filterNotifs('tx', this)">Giao dịch</div>
+          <div class="segmented-tab" onclick="app.filterNotifs('budget', this)">Ngân sách</div>
+          <div class="segmented-tab" onclick="app.filterNotifs('group', this)">Nhóm</div>
+        </div>
+
+        <!-- List of Notifications -->
+        <div id="notificationsList">
+          <!-- Render từ JS -->
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           14. SCREEN: CÁ NHÂN (PROFILE)
+           =================================================== -->
+      <section class="app-screen" id="screen-profile">
+        <div class="screen-header-bar">
+          <h2 class="screen-header-title">Cá nhân</h2>
+        </div>
+
+        <!-- Profile Hero -->
+        <div class="profile-hero-card">
+          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="profile-avatar-large" id="profileAvatarImg" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=FinTrack&background=10B981&color=fff&bold=true';">
+          <div class="profile-fullname" id="profileFullName">Nhân Từ Đức</div>
+          <div class="profile-username" id="profileEmailOrUser">@nhantuduc</div>
+
+          <!-- 3 Stats Quick Row -->
+          <div class="group-stats-row" style="margin-bottom: 0;">
+            <div>
+              <div class="group-stat-lbl">Tổng thu nhập</div>
+              <div class="group-stat-val" style="color: var(--primary-green);" id="profileIncome">0đ</div>
+            </div>
+            <div>
+              <div class="group-stat-lbl">Tổng chi tiêu</div>
+              <div class="group-stat-val" style="color: var(--accent-red);" id="profileExpense">0đ</div>
+            </div>
+            <div>
+              <div class="group-stat-lbl">Tiết kiệm</div>
+              <div class="group-stat-val" style="color: var(--primary-green);" id="profileSavings">0đ</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Menu items navigation -->
+        <div class="menu-list-card">
+          <div class="menu-list-item" onclick="app.navTo('screen-groups')">
+            <div class="menu-item-left">
+              <i data-lucide="users" style="color: #3B82F6; width: 20px; height: 20px;"></i>
+              <span>Nhóm của tôi</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.navTo('screen-wallets')">
+            <div class="menu-item-left">
+              <i data-lucide="credit-card" style="color: #10B981; width: 20px; height: 20px;"></i>
+              <span>Tài khoản / Ví</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.navTo('screen-goals')">
+            <div class="menu-item-left">
+              <i data-lucide="target" style="color: #8B5CF6; width: 20px; height: 20px;"></i>
+              <span>Mục tiêu tài chính</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.navTo('screen-analytics')">
+            <div class="menu-item-left">
+              <i data-lucide="bar-chart-2" style="color: #EC4899; width: 20px; height: 20px;"></i>
+              <span>Báo cáo</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.navTo('screen-income-sources')">
+            <div class="menu-item-left">
+              <i data-lucide="trending-up" style="color: #14B8A6; width: 20px; height: 20px;"></i>
+              <span>Nguồn thu nhập</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.navTo('screen-settings')">
+            <div class="menu-item-left">
+              <i data-lucide="settings" style="color: #64748B; width: 20px; height: 20px;"></i>
+              <span>Cài đặt</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.navTo('screen-notifications')">
+            <div class="menu-item-left">
+              <i data-lucide="bell" style="color: #F59E0B; width: 20px; height: 20px;"></i>
+              <span>Thông báo</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+
+          <div class="menu-list-item" onclick="app.logout()" style="color: var(--accent-red); margin-top: 4px;">
+            <div class="menu-item-left">
+              <i data-lucide="log-out" style="color: var(--accent-red); width: 20px; height: 20px;"></i>
+              <span style="font-weight: 700;">Đăng xuất</span>
+            </div>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ===================================================
+           15. SCREEN: CÀI ĐẶT & QUYỀN RIÊNG TƯ (DARK MODE)
+           =================================================== -->
+      <section class="app-screen" id="screen-settings">
+        <div class="screen-header-bar">
+          <button class="btn-header-back" onclick="app.goBack()">
+            <i data-lucide="chevron-left" style="width: 20px; height: 20px;"></i>
+          </button>
+          <h2 class="screen-header-title" style="flex: 1; text-align: center; margin-right: 36px;">Cài đặt & Quyền riêng tư</h2>
+        </div>
+
+        <!-- Section 1: Quyền riêng tư -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 8px;">Quyền riêng tư</div>
+          
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Hiển thị tên trong Ranking</span>
+            <label class="switch">
+              <input type="checkbox" checked onchange="app.saveSetting('hideNameInRanking', !this.checked)">
+              <span class="slider"></span>
             </label>
-            <div id="ocrExpenseScanningNotice" style="display: none; margin-top: 8px;">
-              <div style="font-size: 11.5px; color: #1D4ED8; font-weight: 700; display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span id="ocrExpenseStatusText">⏳ Tesseract OCR: Đang quét hóa đơn...</span>
-                <span id="ocrExpensePercentText">0%</span>
-              </div>
-              <div style="background: #DBEAFE; height: 6px; border-radius: 3px; overflow: hidden;">
-                <div id="ocrExpenseProgressBarFill" style="background: #2563EB; width: 0%; height: 100%; transition: width 0.2s ease;"></div>
-              </div>
-            </div>
           </div>
 
-          <form id="addExpenseForm" onsubmit="app.handleSaveExpense(event)">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Người thanh toán (Tự đổ xăng cho ca của mình)</label>
-              <select class="form-select" id="expenseDriverSelect">
-                <option value="bu">Bu</option>
-                <option value="thinh">Thịnh</option>
-              </select>
-            </div>
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Hiển thị thu nhập</span>
+            <label class="switch">
+              <input type="checkbox" onchange="app.saveSetting('hideIncome', !this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Loại chi phí</label>
-              <select class="form-select" id="expenseTypeSelect">
-                <option value="fuel">Đổ xăng riêng cho ca</option>
-                <option value="maintain">Sửa xe / Vá vỏ chung</option>
-                <option value="other">Chi phí khác</option>
-              </select>
-            </div>
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Hiển thị vị trí Ranking</span>
+            <label class="switch">
+              <input type="checkbox" checked onchange="app.saveSetting('hideRankingPos', !this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Số tiền (VNĐ)</label>
-              <input type="number" class="form-input" id="expenseAmountInput" placeholder="VD: 100000" step="1000" required>
-            </div>
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Cho phép thành viên xem thống kê</span>
+            <label class="switch">
+              <input type="checkbox" checked onchange="app.saveSetting('allowGroupStats', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label">Ghi chú chi tiết</label>
-              <input type="text" class="form-input" id="expenseNoteInput" placeholder="VD: Đổ xăng cây Petrolimex" required>
-            </div>
-
-            <button type="submit" class="btn-primary">
-              ✓ Lưu Chi Phí
-            </button>
-          </form>
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Hiển thị số dư tài khoản</span>
+            <label class="switch">
+              <input type="checkbox" onchange="app.saveSetting('hideAccountBalances', !this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
         </div>
-      </div>
 
-      <!-- Fullscreen Lightbox có nút Xóa ảnh -->
-      <div class="lightbox-modal" id="photoLightbox">
-        <div class="lightbox-header">
-          <span id="lightboxTitle" style="font-weight: 700; font-size: 15px;">Ảnh chốt đơn</span>
-          <button style="background: none; border: none; color: #FFF; font-size: 24px; cursor: pointer;" onclick="app.closeLightbox()">✕</button>
+        <!-- Section 2: Bảo mật -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 8px;">Bảo mật</div>
+          
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Xác thực hai lớp</span>
+            <label class="switch">
+              <input type="checkbox" onchange="app.saveSetting('twoFactorAuth', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="menu-list-item" style="padding-left: 0; padding-right: 0;" onclick="app.showToast('Tính năng đổi mật khẩu đang mở!')">
+            <span class="toggle-switch-label">Đổi mật khẩu</span>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
         </div>
-        <div class="lightbox-img-box" id="lightboxContent"></div>
-        <div style="font-size: 12px; color: #A0AEC0; text-align: center;" id="lightboxCaption">
-          Ảnh lưu trữ chứng từ chốt ca
+
+        <!-- Section 3: Giao diện -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 8px;">Giao diện</div>
+          
+          <div class="toggle-switch-wrap">
+            <span class="toggle-switch-label">Dark Mode</span>
+            <label class="switch">
+              <input type="checkbox" id="darkModeToggleSwitch" onchange="app.toggleDarkMode(this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="menu-list-item" style="padding-left: 0; padding-right: 0;">
+            <span class="toggle-switch-label">Ngôn ngữ</span>
+            <span style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+              Tiếng Việt <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
+            </span>
+          </div>
         </div>
-        <div style="padding: 10px 0 0 0; display: flex; justify-content: center;">
-          <button class="btn-primary" style="background: #E03131; width: auto; padding: 8px 24px;" onclick="app.deleteCurrentLightboxImage()">
-            🗑️ Xóa ảnh này
-          </button>
+
+        <!-- Section 4: Dữ liệu & Đặt lại -->
+        <div class="ui-card">
+          <div class="section-title" style="margin-bottom: 8px;">Dữ liệu hệ thống</div>
+          <div class="menu-list-item" style="padding-left: 0; padding-right: 0;" onclick="app.resetAllDataClean()">
+            <span class="toggle-switch-label" style="color: var(--accent-red); display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i>
+              Xóa dữ liệu & Bắt đầu lại (0đ)
+            </span>
+            <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- ==============================================
-           MODAL: CHI TIẾT & SỬA / XÓA CHUYẾN ĐI (PHẦN 5)
-           ============================================== -->
-      <div class="modal-overlay" id="tripDetailModal" onclick="app.closeModal('tripDetailModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Chi Tiết & Sửa Chuyến Đi</div>
+    </main>
 
-          <form id="editTripForm" onsubmit="app.handleUpdateTrip(event)">
-            <input type="hidden" id="editTripId">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Người chạy</label>
-              <select class="form-select" id="editTripDriver">
-                <option value="thinh">Thịnh</option>
-                <option value="bu">Bu</option>
-              </select>
+    <!-- ===================================================
+         BOTTOM NAVIGATION (5 TABS CHUẨN)
+         =================================================== -->
+    <nav class="bottom-nav-bar">
+      <!-- 1. Tổng quan -->
+      <button class="nav-item active" id="navDash" onclick="app.navTo('screen-dashboard')">
+        <i data-lucide="home"></i>
+        <span>Tổng quan</span>
+      </button>
+
+      <!-- 2. Lịch -->
+      <button class="nav-item" id="navCal" onclick="app.navTo('screen-calendar')">
+        <i data-lucide="calendar"></i>
+        <span>Lịch</span>
+      </button>
+
+      <!-- 3. Nút "+" tròn ở giữa -->
+      <button class="nav-center-plus" onclick="app.openQuickActionSheet()" title="Tác vụ nhanh">
+        <i data-lucide="plus"></i>
+      </button>
+
+      <!-- 4. Ranking -->
+      <button class="nav-item" id="navRank" onclick="app.navTo('screen-ranking')">
+        <i data-lucide="trophy"></i>
+        <span>Ranking</span>
+      </button>
+
+      <!-- 5. Cá nhân -->
+      <button class="nav-item" id="navProfile" onclick="app.navTo('screen-profile')">
+        <i data-lucide="user"></i>
+        <span>Cá nhân</span>
+      </button>
+    </nav>
+
+
+    <!-- ===================================================
+         QUICK ACTION BOTTOM SHEET (KHI BẤM "+")
+         =================================================== -->
+    <div class="bottom-sheet-backdrop" id="quickActionSheet" onclick="app.closeQuickActionSheet()">
+      <div class="bottom-sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-drag-handle"></div>
+        <div style="font-size: 15px; font-weight: 800; color: var(--text-main); margin-bottom: 14px; text-align: center;">Tác vụ nhanh</div>
+        
+        <div class="sheet-actions-grid">
+          <div class="sheet-action-item" onclick="app.openAddTx('income'); app.closeQuickActionSheet();">
+            <div class="sheet-action-icon" style="background: var(--primary-green);">
+              <i data-lucide="plus" style="width: 24px; height: 24px;"></i>
             </div>
+            <span class="sheet-action-label">Thu nhập</span>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Thời gian</label>
-              <input type="time" class="form-input" id="editTripTime" required>
+          <div class="sheet-action-item" onclick="app.openAddTx('expense'); app.closeQuickActionSheet();">
+            <div class="sheet-action-icon" style="background: var(--accent-red);">
+              <i data-lucide="minus" style="width: 24px; height: 24px;"></i>
             </div>
+            <span class="sheet-action-label">Chi tiêu</span>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Số tiền (VNĐ)</label>
-              <input type="number" class="form-input" id="editTripAmount" step="1000" required>
+          <div class="sheet-action-item" onclick="app.openTransferModal(); app.closeQuickActionSheet();">
+            <div class="sheet-action-icon" style="background: #3B82F6;">
+              <i data-lucide="repeat" style="width: 24px; height: 24px;"></i>
             </div>
+            <span class="sheet-action-label">Chuyển tiền</span>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Hình thức</label>
-              <select class="form-select" id="editTripType">
-                <option value="cash">Tiền mặt</option>
-                <option value="transfer">Chuyển khoản</option>
-              </select>
+          <div class="sheet-action-item" onclick="app.openNewGoalModal(); app.closeQuickActionSheet();">
+            <div class="sheet-action-icon" style="background: #8B5CF6;">
+              <i data-lucide="target" style="width: 24px; height: 24px;"></i>
             </div>
+            <span class="sheet-action-label">Mục tiêu</span>
+          </div>
 
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label">Ghi chú</label>
-              <input type="text" class="form-input" id="editTripNote" required>
+          <div class="sheet-action-item" onclick="document.getElementById('receiptOcrUpload').click(); app.closeQuickActionSheet();">
+            <div class="sheet-action-icon" style="background: #F59E0B;">
+              <i data-lucide="camera" style="width: 24px; height: 24px;"></i>
             </div>
+            <span class="sheet-action-label">Quét hóa đơn</span>
+          </div>
 
-            <div style="display: flex; gap: 10px;">
-              <button type="button" class="btn-primary" style="background: #E03131; flex: 1;" onclick="app.handleDeleteCurrentTrip()">
-                🗑️ Xóa chuyến
-              </button>
-              <button type="submit" class="btn-primary" style="flex: 2;">
-                ✓ Lưu thay đổi
-              </button>
+          <div class="sheet-action-item" onclick="app.navTo('screen-budgets'); app.closeQuickActionSheet();">
+            <div class="sheet-action-icon" style="background: #EC4899;">
+              <i data-lucide="pie-chart" style="width: 24px; height: 24px;"></i>
             </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- ==============================================
-           MODAL: CHI TIẾT & SỬA / XÓA NOTE (PHẦN 7)
-           ============================================== -->
-      <div class="modal-overlay" id="noteActionModal" onclick="app.closeModal('noteActionModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">Sửa / Xóa Ghi Chú</div>
-
-          <form id="editNoteForm" onsubmit="app.handleUpdateNote(event)">
-            <input type="hidden" id="editNoteId">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <label class="form-label">Nội dung ghi chú</label>
-              <textarea class="form-input" id="editNoteContent" style="height: 70px;" required></textarea>
-            </div>
-
-            <div class="form-group" style="margin-bottom: 14px;">
-              <label class="form-label">Người ghi</label>
-              <select class="form-select" id="editNoteDriver">
-                <option value="Thịnh">Thịnh</option>
-                <option value="Bu">Bu</option>
-              </select>
-            </div>
-
-            <div style="display: flex; gap: 10px;">
-              <button type="button" class="btn-primary" style="background: #E03131; flex: 1;" onclick="app.handleDeleteCurrentNote()">
-                🗑️ Xóa note
-              </button>
-              <button type="submit" class="btn-primary" style="flex: 2;">
-                ✓ Cập nhật
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- ==============================================
-           MODAL: QUẢN LÝ / HỦY CA CHẠY (PHẦN 4)
-           ============================================== -->
-      <div class="modal-overlay" id="slotActionModal" onclick="app.closeModal('slotActionModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title" id="slotActionTitle">Quản Lý Ca Chạy</div>
-          <p style="font-size: 12px; color: var(--text-muted); text-align: center; margin-top: -4px;" id="slotActionDesc">
-            Khung giờ: 13:00 - 16:00
-          </p>
-
-          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
-            <button class="btn-primary" style="background: var(--primary-green);" onclick="app.setSlotStatus('completed')">
-              ✓ Đánh dấu: Đã chạy xong
-            </button>
-            <button class="btn-primary" style="background: var(--accent-blue);" onclick="app.setSlotStatus('available')">
-              🔄 Đánh dấu: Sẵn sàng nhận ca
-            </button>
-            <button class="btn-primary" style="background: #6C757D;" onclick="app.setSlotStatus('off')">
-              ☕ Đánh dấu: Nghỉ ca này
-            </button>
-            <button class="btn-primary" style="background: #E03131;" onclick="app.setSlotStatus('cancel')">
-              ✕ Hủy ca (Trả xe về Trống)
-            </button>
+            <span class="sheet-action-label">Ngân sách</span>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- ==============================================
-           MODAL: XEM LỊCH SỬ CHỐT NGÀY CHI TIẾT (PHẦN 12)
-           ============================================== -->
-      <div class="modal-overlay" id="historyDetailModal" onclick="app.closeModal('historyDetailModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title" id="historyDetailTitle">Bản Chốt Ngày</div>
-          <div id="historyDetailContent" style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; margin: 10px 0;">
-            <!-- Rendered via JS -->
-          </div>
-          <button class="btn-primary" onclick="app.closeModal('historyDetailModal')">
-            Đóng
-          </button>
+
+    <!-- ===================================================
+         CATEGORY SELECT BOTTOM SHEET
+         =================================================== -->
+    <div class="bottom-sheet-backdrop" id="catSelectSheet" onclick="app.closeCategorySheet()">
+      <div class="bottom-sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-drag-handle"></div>
+        <div style="font-size: 15px; font-weight: 800; color: var(--text-main); margin-bottom: 14px;">Chọn danh mục</div>
+        <div style="max-height: 280px; overflow-y: auto;" id="categoryListContainer">
+          <!-- Render danh mục từ JS -->
         </div>
       </div>
+    </div>
 
-      <!-- ==============================================
-           MODAL: SỔ BẢO DƯỠNG XE AIR BLADE (LUBELOGGER)
-           ============================================== -->
-      <div class="modal-overlay" id="maintenanceModal" onclick="app.closeModal('maintenanceModal', event)">
-        <div class="bottom-sheet" onclick="event.stopPropagation()">
-          <div class="sheet-handle"></div>
-          <div class="sheet-title">🛠️ Sổ Bảo Dưỡng Air Blade (59E2-059.57)</div>
-          <p style="font-size: 11.5px; color: var(--text-muted); text-align: center; margin-top: -6px;">
-            Quản lý số ODO & chu kỳ thay nhớt, lọc gió, sửa xe chung
-          </p>
 
-          <!-- Hộp cập nhật số ODO nhanh -->
-          <div class="odo-update-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span style="font-size: 12px; font-weight: 700;">Đồng hồ ODO xe:</span>
-              <strong style="font-size: 16px; color: var(--primary-green);" id="modalOdoCurrentDisplay">12.850 km</strong>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <input type="number" class="form-input" id="modalInputOdo" placeholder="Cập nhật số ODO mới (km)" style="flex: 1; padding: 6px 10px;">
-              <button type="button" class="btn-primary" style="width: auto; padding: 6px 14px; font-size: 12px;" onclick="app.handleUpdateOdo()">
-                Cập nhật ODO
-              </button>
-            </div>
-          </div>
-
-          <!-- Trạng thái các mốc bảo dưỡng định kỳ -->
-          <div class="maint-status-cards-grid">
-            <div class="maint-detail-card" id="cardMaintOilEngine">
-              <div class="maint-detail-head">
-                <span class="maint-detail-title">🛵 Nhớt máy (1.500 km)</span>
-                <span class="badge-status" id="badgeMaintOilEngine">Tốt</span>
-              </div>
-              <div class="maint-detail-body" id="textMaintOilEngine">
-                Lần thay gần nhất: 11.500 km (Đã chạy 1.350 km)
-              </div>
-              <button type="button" class="btn-maint-quick" onclick="app.quickLogMaintenance('oil_engine')">
-                + Ghi nhận đã thay nhớt máy
-              </button>
-            </div>
-
-            <div class="maint-detail-card" id="cardMaintOilGear">
-              <div class="maint-detail-head">
-                <span class="maint-detail-title">⚙️ Nhớt láp / số (5.000 km)</span>
-                <span class="badge-status" id="badgeMaintOilGear">Tốt</span>
-              </div>
-              <div class="maint-detail-body" id="textMaintOilGear">
-                Lần thay gần nhất: 10.000 km (Đã chạy 2.850 km)
-              </div>
-              <button type="button" class="btn-maint-quick" onclick="app.quickLogMaintenance('oil_gear')">
-                + Ghi nhận đã thay nhớt láp
-              </button>
-            </div>
-          </div>
-
-          <!-- Form Ghi Nhận Bảo Dưỡng / Sửa Xe Mới -->
-          <div style="border-top: 1px solid #E2E8F0; padding-top: 10px;">
-            <div class="form-label" style="font-weight: 800; font-size: 13px; margin-bottom: 8px;">
-              📝 Ghi nhận chi phí xe / sửa xe chung (Chia 50-50)
-            </div>
-            <form id="addMaintenanceForm" onsubmit="app.handleSaveMaintenance(event)">
-              <div class="form-group" style="margin-bottom: 8px;">
-                <label class="form-label">Hạng mục dịch vụ</label>
-                <input type="text" class="form-input" id="maintNameInput" placeholder="VD: Thay nhớt Motul, Vá vỏ bánh sau..." required>
-              </div>
-
-              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-                <div class="form-group" style="flex: 1;">
-                  <label class="form-label">Số tiền (VNĐ)</label>
-                  <input type="number" class="form-input" id="maintCostInput" placeholder="VD: 130000" step="1000" required>
-                </div>
-                <div class="form-group" style="flex: 1;">
-                  <label class="form-label">Người trả tiền túi</label>
-                  <select class="form-select" id="maintPaidBySelect">
-                    <option value="thinh">Thịnh trả</option>
-                    <option value="bu">Bu trả</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label class="form-label">Ghi chú / Tên tiệm</label>
-                <input type="text" class="form-input" id="maintNoteInput" placeholder="VD: Tiệm sửa xe chú Bảy, nhớt chính hãng">
-              </div>
-
-              <button type="submit" class="btn-primary">
-                ✓ Lưu chi phí xe & Đồng bộ chia nợ Spliit
-              </button>
-            </form>
-          </div>
-
-          <!-- Lịch sử bảo dưỡng gần đây -->
-          <div style="border-top: 1px solid #E2E8F0; padding-top: 10px; margin-top: 4px;">
-            <div class="form-label" style="font-weight: 800; font-size: 13px; margin-bottom: 8px;">
-              📜 Lịch sử bảo dưỡng xe gần nhất
-            </div>
-            <div class="maint-history-list" id="maintHistoryList">
-              <!-- Rendered via JS -->
-            </div>
-          </div>
-
-          <button type="button" class="btn-primary" style="background: #64748B; margin-top: 6px;" onclick="app.closeModal('maintenanceModal')">
-            Đóng sổ bảo dưỡng
-          </button>
+    <!-- ===================================================
+         TRANSFER MODAL (CHUYỂN TIỀN)
+         =================================================== -->
+    <div class="bottom-sheet-backdrop" id="transferModal" onclick="app.closeTransferModal()">
+      <div class="bottom-sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-drag-handle"></div>
+        <div style="font-size: 16px; font-weight: 800; color: var(--text-main); margin-bottom: 14px; text-align: center;">Chuyển tiền giữa các ví</div>
+        
+        <div class="form-group">
+          <label class="form-label">Từ ví</label>
+          <select class="input-text-standard" id="transferFromSelect" onchange="app.handleTransferFromChange()">
+            <option value="Ngân hàng">Ngân hàng (0đ)</option>
+            <option value="Tiền mặt">Tiền mặt (0đ)</option>
+          </select>
         </div>
+
+        <div class="form-group">
+          <label class="form-label">Đến ví</label>
+          <select class="input-text-standard" id="transferToSelect">
+            <option value="Tiền mặt">Tiền mặt</option>
+            <option value="Ngân hàng">Ngân hàng</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Số tiền</label>
+          <input type="number" class="input-text-standard" id="transferAmountInput" placeholder="Nhập số tiền chuyển">
+        </div>
+
+        <button class="btn-primary" onclick="app.executeTransfer()">Xác nhận chuyển</button>
       </div>
+    </div>
 
-    </div> <!-- /app-root -->
 
-  <!-- Firebase Cloud Firestore SDK v10 (Compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- ===================================================
+         NEW GOAL MODAL
+         =================================================== -->
+    <div class="bottom-sheet-backdrop" id="newGoalModal" onclick="app.closeNewGoalModal()">
+      <div class="bottom-sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-drag-handle"></div>
+        <div style="font-size: 16px; font-weight: 800; color: var(--text-main); margin-bottom: 14px; text-align: center;">Tạo mục tiêu tài chính mới</div>
+        
+        <div class="form-group">
+          <label class="form-label">Tên mục tiêu</label>
+          <input type="text" class="input-text-standard" id="newGoalTitleInput" placeholder="Ví dụ: Mua iPhone 16 Pro">
+        </div>
 
-  <!-- Load Scripts -->
+        <div class="form-group">
+          <label class="form-label">Số tiền mục tiêu</label>
+          <input type="number" class="input-text-standard" id="newGoalTargetInput" placeholder="Ví dụ: 30000000">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Đã tiết kiệm được</label>
+          <input type="number" class="input-text-standard" id="newGoalCurrentInput" placeholder="0">
+        </div>
+
+        <button class="btn-primary" onclick="app.submitNewGoal()">Tạo mục tiêu</button>
+      </div>
+    </div>
+
+
+    <!-- TOAST MESSAGE -->
+    <div class="toast-msg" id="toastMsg">
+      <i data-lucide="check-circle" style="width: 18px; height: 18px; color: var(--primary-green);"></i>
+      <span id="toastText">Thành công</span>
+    </div>
+
+  </div> <!-- End .mobile-viewport -->
+
+  <!-- App Scripts -->
+  <script src="data.js"></script>
   <script src="ocr-engine.js"></script>
   <script src="firebase-sync.js"></script>
-  <script src="data.js"></script>
   <script src="app.js"></script>
-
-  <!-- Đăng ký Service Worker PWA -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW register error:', err));
-      });
-    }
-  </script>
 </body>
 </html>

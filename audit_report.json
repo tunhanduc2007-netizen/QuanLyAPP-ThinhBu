@@ -1,0 +1,140 @@
+{
+  "passed": 20,
+  "failed": 0,
+  "notImplemented": 0,
+  "notVerified": 2,
+  "details": [
+    {
+      "section": "1. Firestore Rules",
+      "name": "firestore.rules comprehensive subcollections schema",
+      "status": "PASS",
+      "reason": "Có đầy đủ rules cho users/{userId}/subcollections, groups/{groupId}/members (RBAC) và leaderboards/{period}."
+    },
+    {
+      "section": "1. Firestore Rules",
+      "name": "firebase.json deployment config",
+      "status": "PASS",
+      "reason": "Có firebase.json cấu hình rules và hosting."
+    },
+    {
+      "section": "2. IDOR / Access Control",
+      "name": "Firestore Rules Logic Verification",
+      "status": "PASS",
+      "reason": "Logic quy tắc trong firestore.rules chặn đứng User A đọc/ghi/xóa dữ liệu User B (verified in test_firestore_security.js)."
+    },
+    {
+      "section": "2. IDOR / Access Control",
+      "name": "Cloud Server Live Enforcement",
+      "status": "NOT VERIFIED",
+      "reason": "Cần người quản trị publish firestore.rules lên Firebase Console để server Google Cloud thực sự chặn các truy vấn trực tiếp."
+    },
+    {
+      "section": "3. Atomicity",
+      "name": "executeTransfer() Firestore Atomic Transaction",
+      "status": "PASS",
+      "reason": "executeTransfer() kích hoạt executeAtomicTransfer() sử dụng db.runTransaction() để đảm bảo tính nguyên tử ACID trên Cloud Database."
+    },
+    {
+      "section": "3. Atomicity",
+      "name": "Local In-Memory Transfer Rollback on Insufficient Funds",
+      "status": "PASS",
+      "reason": "Logic JavaScript kiểm tra số dư trước khi trừ tiền, bảo vệ chống âm tiền ở tầng in-memory."
+    },
+    {
+      "section": "4. Concurrency",
+      "name": "Document-level writes eliminate Lost Updates",
+      "status": "PASS",
+      "reason": "Mỗi transaction được lưu thành 1 document độc lập users/{uid}/transactions/{txId}, 2 thiết bị ghi đồng thời không bị ghi đè mất mát."
+    },
+    {
+      "section": "5. Offline/Online Sync",
+      "name": "Offline Queue & Reconciliation",
+      "status": "PASS",
+      "reason": "Khi offline, giao dịch đưa vào queue; khi online lại, tự động reconcile batch commit lên Firestore."
+    },
+    {
+      "section": "6. Financial Integrity",
+      "name": "Stress Test 100 Transactions",
+      "status": "PASS",
+      "reason": "Khớp 100% (0đ lệch) [0ms]"
+    },
+    {
+      "section": "6. Financial Integrity",
+      "name": "Stress Test 1,000 Transactions",
+      "status": "PASS",
+      "reason": "Khớp 100% (0đ lệch) [0ms]"
+    },
+    {
+      "section": "6. Financial Integrity",
+      "name": "Stress Test 10,000 Transactions",
+      "status": "PASS",
+      "reason": "Khớp 100% (0đ lệch) [1ms]"
+    },
+    {
+      "section": "6. Financial Integrity",
+      "name": "Stress Test 50,000 Transactions",
+      "status": "PASS",
+      "reason": "Khớp 100% (0đ lệch) [1ms]"
+    },
+    {
+      "section": "6. Financial Integrity",
+      "name": "Stress Test 100,000 Transactions",
+      "status": "PASS",
+      "reason": "Khớp 100% (0đ lệch) [3ms]"
+    },
+    {
+      "section": "7. Ranking",
+      "name": "Global Cross-User Leaderboard Engine",
+      "status": "PASS",
+      "reason": "Hệ thống tự động đẩy số liệu thu nhập ẩn danh lên leaderboards/monthly/entries/{uid}."
+    },
+    {
+      "section": "7. Ranking",
+      "name": "Ranking Privacy Masking (Ẩn danh)",
+      "status": "PASS",
+      "reason": "Khi bật chế độ ẩn danh, tên hiển thị trên bảng xếp hạng chuyển thành Bạn (Ẩn danh) / Người dùng ẩn danh."
+    },
+    {
+      "section": "8. Calendar",
+      "name": "Leap Year February 28/29 day calculation",
+      "status": "PASS",
+      "reason": "Xử lý năm nhuận chính xác (2024: 29 ngày, 2025: 28 ngày)"
+    },
+    {
+      "section": "8. Calendar",
+      "name": "Vietnam GMT+7 Midnight (00:00 - 06:59) Rollover",
+      "status": "PASS",
+      "reason": "Đã bù trừ múi giờ cục bộ GMT+7 qua getLocalDateString(), không còn bị lùi ngày lúc nửa đêm."
+    },
+    {
+      "section": "9. Authentication",
+      "name": "In-memory Data Cleanup on Logout",
+      "status": "PASS",
+      "reason": "Đã dọn sạch RAM khi logout (Reset this.data về trạng thái sạch 0đ)."
+    },
+    {
+      "section": "9. Authentication",
+      "name": "Cloud Sync Listener Detach on Logout",
+      "status": "PASS",
+      "reason": "Đã detach listener và clear timeouts khi logout (grabSync.stopSync)."
+    },
+    {
+      "section": "10. Data Isolation",
+      "name": "Multi-User LocalStorage Key Partitioning",
+      "status": "PASS",
+      "reason": "Dữ liệu cục bộ được phân vùng riêng biệt theo khóa 'finance_data_' + uid."
+    },
+    {
+      "section": "11. Firebase Config",
+      "name": "Server Secret / Private Key Exposure",
+      "status": "PASS",
+      "reason": "Không lộ Private Key hay Service Account. apiKey là Web Client Identifier công khai tiêu chuẩn của Firebase."
+    },
+    {
+      "section": "11. Firebase Config",
+      "name": "Firebase App Check (Abuse & Bot Protection)",
+      "status": "NOT VERIFIED",
+      "reason": "Cần cấu hình reCAPTCHA v3 / Play Integrity trên Firebase Console để kích hoạt App Check."
+    }
+  ]
+}

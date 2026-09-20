@@ -1,4 +1,4 @@
-const CACHE_NAME = 'grab-app-v10';
+const CACHE_NAME = 'finance-app-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,11 @@ const ASSETS = [
   './app.js',
   './ocr-engine.js',
   './firebase-sync.js',
-  './manifest.json'
+  './manifest.json',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png',
+  './favicon.png'
 ];
 
 self.addEventListener('install', (event) => {
