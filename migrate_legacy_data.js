@@ -86,27 +86,43 @@ class LegacyDataMigrator {
     });
 
     // 5. Tạo document cho từng Transaction (Không còn lưu chuỗi JSON gộp)
+    // Áp dụng Deduplication Map đảm bảo tính Idempotent khi chạy lại nhiều lần (Criteria 11)
+    const txMap = new Map();
+    const idMappings = [];
+
     legacyTxs.forEach((tx, idx) => {
-      const txId = tx.id || `tx-${Date.now()}-${idx}`;
-      newCollections.transactions.push({
-        path: `users/${uid}/transactions/${txId}`,
-        data: {
-          id: txId,
-          title: tx.title || 'Giao dịch',
-          category: tx.category || 'Khác',
-          type: tx.type || 'expense',
-          amount: Number(tx.amount) || 0,
-          account: tx.account || 'Ngân hàng',
-          date: tx.date || '',
-          time: tx.time || '12:00',
-          isoDate: tx.isoDate || '',
-          user: tx.user || (legacyData.user && legacyData.user.name) || 'Người dùng',
-          icon: tx.icon || 'file-text',
-          createdAt: tx.createdAt || Date.now(),
-          migratedFromLegacy: true
-        }
+      const sourceId = tx.id || `tx-migrated-${idx}`;
+      const destId = sourceId;
+
+      const txData = {
+        id: destId,
+        title: tx.title || 'Giao dịch',
+        category: tx.category || 'Khác',
+        type: tx.type || 'expense',
+        amount: Number(tx.amount) || 0,
+        account: tx.account || 'Ngân hàng',
+        date: tx.date || '',
+        time: tx.time || '12:00',
+        isoDate: tx.isoDate || '',
+        user: tx.user || (legacyData.user && legacyData.user.name) || 'Người dùng',
+        icon: tx.icon || 'file-text',
+        createdAt: tx.createdAt || (Date.now() - idx),
+        migratedFromLegacy: true
+      };
+
+      txMap.set(destId, {
+        path: `users/${uid}/transactions/${destId}`,
+        data: txData
+      });
+
+      idMappings.push({
+        sourceId: sourceId,
+        destinationId: destId,
+        status: 'MAPPED'
       });
     });
+
+    newCollections.transactions = Array.from(txMap.values());
 
     // 6. Tạo document cho Budgets & Goals
     legacyBudgets.forEach(b => {
@@ -123,35 +139,78 @@ class LegacyDataMigrator {
       });
     });
 
-    // 7. KIỂM ĐỊNH TOÀN VẸN (INTEGRITY GATE)
-    const newTxCount = newCollections.transactions.length;
+    // 7. KIỂM ĐỊNH TOÀN VẸN 4 CHỈ SỐ TÀI CHÍNH (CRITERIA 1 & CRITERIA 11)
+    const sourceTransactionCount = legacyTxs.length;
+    const destinationTransactionCount = newCollections.transactions.length;
 
-    // Kiểm tra số lượng giao dịch
-    if (newTxCount !== legacyTxCount) {
+    const sourceIncome = legacyTxs
+      .filter(t => t.type === 'income')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const destinationIncome = newCollections.transactions
+      .filter(t => t.data.type === 'income')
+      .reduce((s, t) => s + (Number(t.data.amount) || 0), 0);
+
+    const sourceExpense = legacyTxs
+      .filter(t => t.type === 'expense')
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const destinationExpense = newCollections.transactions
+      .filter(t => t.data.type === 'expense')
+      .reduce((s, t) => s + (Number(t.data.amount) || 0), 0);
+
+    const sourceBalance = legacyTotalBalance;
+    const destinationBalance = newWalletsTotal;
+
+    const countMatch = sourceTransactionCount === destinationTransactionCount;
+    const incomeMatch = Math.abs(sourceIncome - destinationIncome) < 0.001;
+    const expenseMatch = Math.abs(sourceExpense - destinationExpense) < 0.001;
+    const balanceMatch = Math.abs(sourceBalance - destinationBalance) < 0.001;
+
+    // Sai bất kỳ giá trị nào: FAIL -> STOP -> DO NOT DELETE SOURCE (Criteria 1)
+    if (!countMatch || !incomeMatch || !expenseMatch || !balanceMatch) {
+      const errMsgs = [];
+      if (!countMatch) errMsgs.push(`Số lượng giao dịch không khớp (Cũ: ${sourceTransactionCount}, Mới: ${destinationTransactionCount})`);
+      if (!incomeMatch) errMsgs.push(`Thu nhập không khớp (Cũ: ${sourceIncome}, Mới: ${destinationIncome})`);
+      if (!expenseMatch) errMsgs.push(`Chi tiêu không khớp (Cũ: ${sourceExpense}, Mới: ${destinationExpense})`);
+      if (!balanceMatch) errMsgs.push(`Số dư không khớp (Cũ: ${sourceBalance}, Mới: ${destinationBalance})`);
+      const errorMsg = `CRITICAL INTEGRITY FAILURE: ${errMsgs.join('; ')}`;
+
       return {
         success: false,
-        error: `MIGRATION_FAILED: Số lượng giao dịch không khớp! Cũ: ${legacyTxCount}, Mới: ${newTxCount}`,
-        legacyTxCount,
-        newTxCount
+        error: errorMsg,
+        migrationStatus: 'FAIL',
+        decision: 'STOP',
+        deleteSourceAllowed: false,
+        errorReport: errorMsg,
+        sourceTransactionCount,
+        destinationTransactionCount,
+        sourceIncome,
+        destinationIncome,
+        sourceExpense,
+        destinationExpense,
+        sourceBalance,
+        destinationBalance,
+        idMappings
       };
     }
 
-    // Kiểm tra số dư ví khớp 100%
-    if (newWalletsTotal !== legacyTotalBalance) {
-      return {
-        success: false,
-        error: `MIGRATION_FAILED: Số dư không khớp! Cũ: ${legacyTotalBalance}, Mới: ${newWalletsTotal}`,
-        legacyTotalBalance,
-        newWalletsTotal
-      };
-    }
-
-    // 8. Đánh dấu Migration hoàn tất
+    // 8. Đánh dấu Migration hoàn tất - BẢO LƯU SOURCE DOCUMENT (Criteria 11)
     return {
       success: true,
-      uid,
+      migrationStatus: 'PASS',
+      decision: 'PROCEED',
+      deleteSourceAllowed: false, // BẮT BUỘC: Không xóa fintrack_user_data cho tới khi mọi gate pass
+      errorReport: null,
+      sourceTransactionCount,
+      destinationTransactionCount,
+      sourceIncome,
+      destinationIncome,
+      sourceExpense,
+      destinationExpense,
+      sourceBalance,
+      destinationBalance,
+      idMappings,
       migratedCounts: {
-        transactions: newTxCount,
+        transactions: destinationTransactionCount,
         wallets: newCollections.wallets.length,
         budgets: newCollections.budgets.length,
         goals: newCollections.goals.length

@@ -1,15 +1,15 @@
 /**
  * DỮ LIỆU TÀI CHÍNH SẠCH (CLEAN STATE)
- * Khởi đầu mới: Chỉ có 1 người dùng (Nhân Từ Đức), số dư 0đ, 0 giao dịch.
+ * Khởi đầu chuẩn: 0đ, 0 giao dịch, không dữ liệu giả lập.
  */
 
 const DEFAULT_FINANCE_DATA = {
   user: {
-    name: "Nhân Từ Đức",
-    nickname: "Nhân Từ Đức 👋",
-    username: "@nhantuduc",
+    name: "Người dùng",
+    nickname: "Người dùng 👋",
+    username: "@user",
     greeting: "Chúc bạn một ngày tốt lành!",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    avatar: "",
     hideNameInRanking: false,
     hideIncome: false,
     hideRankingPos: false,
@@ -52,8 +52,8 @@ const DEFAULT_FINANCE_DATA = {
     leaderboard: [
       {
         rank: 1,
-        name: "Nhân Từ Đức",
-        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+        name: "Bạn",
+        avatar: "",
         amount: 0,
         growth: 0,
         isCurrentUser: true
@@ -61,7 +61,7 @@ const DEFAULT_FINANCE_DATA = {
     ]
   },
 
-    groups: {
+  groups: {
     featured: {
       id: "grp-my",
       name: "Gia đình",
@@ -70,9 +70,7 @@ const DEFAULT_FINANCE_DATA = {
       totalExpense: 0,
       savings: 0,
       avatarBg: "#10B981",
-      members: [
-        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80"
-      ]
+      members: []
     },
     list: [],
     detail: {
@@ -85,8 +83,8 @@ const DEFAULT_FINANCE_DATA = {
       savings: 0,
       membersContribution: [
         {
-          name: "Nhân Từ Đức",
-          avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80",
+          name: "Bạn",
+          avatar: "",
           percent: 100,
           amount: 0
         }
@@ -125,51 +123,13 @@ const DEFAULT_FINANCE_DATA = {
     recentTransactions: []
   },
 
-  notifications: [
-    {
-      id: "notif-welcome",
-      title: "Chào mừng Nhân Từ Đức! Bấm nút '+' để thêm giao dịch đầu tiên.",
-      time: "Vừa xong",
-      type: "general",
-      icon: "sparkles",
-      color: "#10B981",
-      bg: "#D1FAE5"
-    }
-  ],
+  notifications: [],
 
   friends: {
-    tag: "@nhantuduc",
+    tag: "@user",
     activeTab: "list",
-    list: [
-      {
-        id: "fr-1",
-        name: "Nguyễn Văn Thịnh",
-        tag: "@thinh_grab",
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80",
-        role: "Tài xế công nghệ 5⭐",
-        status: "accepted",
-        addedAt: "20/09/2026"
-      },
-      {
-        id: "fr-2",
-        name: "Trần Mai Anh",
-        tag: "@maianh_99",
-        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80",
-        role: "Thành viên Quỹ Gia Đình",
-        status: "accepted",
-        addedAt: "21/09/2026"
-      }
-    ],
-    requests: [
-      {
-        id: "req-1",
-        fromName: "Lê Hoàng Nam",
-        fromTag: "@nam_tech",
-        avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80",
-        role: "Bạn cùng nhóm",
-        time: "10 phút trước"
-      }
-    ]
+    list: [],
+    requests: []
   }
 };
 

@@ -1,9 +1,15 @@
 /**
- * TEST SUITE: DATA MIGRATION VERIFICATION
- * Kiểm tra tính toàn vẹn 100% của script migration
+ * TEST SUITE: DATA MIGRATION VERIFICATION (test_migration.js)
+ * Kiểm định toàn diện tiêu chuẩn di chuyển dữ liệu (Criteria 1 & Criteria 11):
+ * - Bảo toàn 127 giao dịch, 40,960,000đ thu nhập, 40,320,000đ chi tiêu, 25,000,000đ số dư
+ * - Idempotent: chạy lần 1 và lần 2 không gây nhân đôi bản ghi
+ * - Lệch bất kỳ giá trị nào: FAIL -> STOP -> KHÔNG XÓA DỮ LIỆU CŨ
+ * - Ánh xạ Source ID -> Destination ID
  */
 
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const LegacyDataMigrator = require('./migrate_legacy_data');
 
 console.log('====================================================');
@@ -24,60 +30,49 @@ function runTest(name, fn) {
   }
 }
 
-// TEST 1: Migration thành công khi số lượng giao dịch và số dư khớp 100%
-runTest('1. Exact match migration (127 transactions, 100% balance match)', () => {
+// TEST 1: Di chuyển dữ liệu Baseline thực tế (127 transactions, 40.96M thu, 40.32M chi, 25M số dư)
+runTest('1. Exact match migration on Baseline (127 txs, 40.96M inc, 40.32M exp, 25M bal)', () => {
   const migrator = new LegacyDataMigrator();
-  const legacyData = {
-    user: { name: 'Test User', uid: 'user_127' },
-    overview: { currentBalance: 50000000 },
-    wallets: { accounts: [{ id: 'acc-bank', balance: 50000000 }] },
-    transactions: []
-  };
+  const baselinePath = path.join(__dirname, 'backup_baseline_127tx.json');
+  assert.ok(fs.existsSync(baselinePath), 'Phải có file backup_baseline_127tx.json');
+  const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
 
-  // Tạo 127 transactions giả lập
-  for (let i = 0; i < 127; i++) {
-    legacyData.transactions.push({
-      id: `tx-${i}`,
-      title: `Giao dịch ${i}`,
-      amount: 100000,
-      type: 'income',
-      account: 'Ngân hàng'
-    });
-  }
-
-  const res = migrator.migrate('user_127', legacyData);
-  assert.strictEqual(res.success, true);
-  assert.strictEqual(res.migratedCounts.transactions, 127);
-  assert.strictEqual(res.verifiedBalances.match, true);
+  const res = migrator.migrate(baselineData.user.uid, baselineData);
+  assert.strictEqual(res.success, true, 'Migration phải thành công');
+  assert.strictEqual(res.migrationStatus, 'PASS');
+  assert.strictEqual(res.sourceTransactionCount, 127);
+  assert.strictEqual(res.destinationTransactionCount, 127);
+  assert.strictEqual(res.sourceIncome, 40960000);
+  assert.strictEqual(res.destinationIncome, 40960000);
+  assert.strictEqual(res.sourceExpense, 40320000);
+  assert.strictEqual(res.destinationExpense, 40320000);
+  assert.strictEqual(res.sourceBalance, 25000000);
+  assert.strictEqual(res.destinationBalance, 25000000);
+  assert.strictEqual(res.deleteSourceAllowed, false, 'Không bao giờ được xóa source trước khi đủ 7 gate');
 });
 
-// TEST 2: Phát hiện sai lệch số lượng giao dịch (127 != 126) -> PHẢI TỪ CHỐI
-runTest('2. Mismatched transaction count (127 != 126) must FAIL and abort', () => {
+// TEST 2: Phát hiện sai lệch số lượng giao dịch (127 != 126 do trùng hoặc mất ID) -> PHẢI TỪ CHỐI
+runTest('2. Mismatched transaction count must FAIL, STOP and retain source', () => {
   const migrator = new LegacyDataMigrator();
-  const legacyData = {
+  const corruptedData = {
     user: { name: 'Test User', uid: 'user_mismatch' },
-    overview: { currentBalance: 1000 },
-    wallets: { accounts: [{ id: 'acc-bank', balance: 1000 }] },
-    transactions: [{ id: 'tx-1', amount: 1000 }]
+    overview: { currentBalance: 200000 },
+    wallets: { accounts: [{ id: 'acc-bank', balance: 200000 }] },
+    transactions: [
+      { id: 'tx-dup-1', amount: 100000, type: 'income' },
+      { id: 'tx-dup-1', amount: 100000, type: 'income' } // Duplicate ID làm count lệch
+    ]
   };
 
-  // Cố tình làm lệch count
-  const corruptedLegacy = { ...legacyData };
-  corruptedLegacy.transactions = [{ id: 'tx-1' }, { id: 'tx-2' }]; // 2 txs
-  
-  // Tạo migrator giả lập mất 1 bản ghi
-  const originalMigrate = migrator.migrate.bind(migrator);
-  // Test hàm phát hiện nếu newTxCount !== legacyTxCount
-  const res = migrator.migrate('user_mismatch', {
-    ...corruptedLegacy,
-    // truyền legacyData nhưng có 1 phần tử undefined
-    transactions: [{ id: 'tx-1', amount: 500 }]
-  });
-  // Số dư: overview 1000 nhưng ví 1000, tx 500
-  assert.strictEqual(res.success, true); // nếu ví khớp
+  const res = migrator.migrate('user_mismatch', corruptedData);
+  assert.strictEqual(res.success, false);
+  assert.strictEqual(res.migrationStatus, 'FAIL');
+  assert.strictEqual(res.decision, 'STOP');
+  assert.strictEqual(res.deleteSourceAllowed, false);
+  assert.ok(res.error.includes('Số lượng giao dịch không khớp'));
 });
 
-// TEST 3: Sai lệch số dư -> Bắt buộc FAIL
+// TEST 3: Sai lệch số dư -> Bắt buộc FAIL, STOP
 runTest('3. Mismatched total balance must FAIL and abort', () => {
   const migrator = new LegacyDataMigrator();
   const legacyData = {
@@ -89,11 +84,51 @@ runTest('3. Mismatched total balance must FAIL and abort', () => {
 
   const res = migrator.migrate('user_bal_err', legacyData);
   assert.strictEqual(res.success, false, 'Phải từ chối khi số dư lệch!');
+  assert.strictEqual(res.migrationStatus, 'FAIL');
+  assert.strictEqual(res.decision, 'STOP');
+  assert.strictEqual(res.deleteSourceAllowed, false);
   assert.ok(res.error.includes('Số dư không khớp'));
 });
 
-// TEST 4: Dữ liệu JSON Blob hỏng -> Phải throw error an toàn
-runTest('4. Corrupted JSON string input throws safe error without crashing', () => {
+// TEST 4: Idempotency: Chạy migration lần 1 và lần 2 cho kết quả giống hệt nhau, không nhân đôi bản ghi
+runTest('4. Idempotency test (Run 1 == Run 2 without duplicate destination items)', () => {
+  const migrator = new LegacyDataMigrator();
+  const baselinePath = path.join(__dirname, 'backup_baseline_127tx.json');
+  const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+
+  const run1 = migrator.migrate('uid_idempotent', baselineData);
+  const run2 = migrator.migrate('uid_idempotent', baselineData);
+
+  assert.strictEqual(run1.destinationTransactionCount, run2.destinationTransactionCount);
+  assert.strictEqual(run1.destinationBalance, run2.destinationBalance);
+  assert.strictEqual(run1.destinationIncome, run2.destinationIncome);
+  assert.strictEqual(run1.destinationExpense, run2.destinationExpense);
+  assert.strictEqual(run2.destinationTransactionCount, 127);
+});
+
+// TEST 5: Ánh xạ Source ID -> Destination ID đầy đủ
+runTest('5. Source ID to Destination ID mapping auditability', () => {
+  const migrator = new LegacyDataMigrator();
+  const testData = {
+    user: { name: 'Audit User', uid: 'uid_map' },
+    overview: { currentBalance: 100000 },
+    wallets: { accounts: [{ id: 'acc-bank', balance: 100000 }] },
+    transactions: [
+      { id: 'tx-src-001', amount: 100000, type: 'income', title: 'Lương' }
+    ]
+  };
+
+  const res = migrator.migrate('uid_map', testData);
+  assert.strictEqual(res.success, true);
+  assert.ok(Array.isArray(res.idMappings));
+  assert.strictEqual(res.idMappings.length, 1);
+  assert.strictEqual(res.idMappings[0].sourceId, 'tx-src-001');
+  assert.strictEqual(res.idMappings[0].destinationId, 'tx-src-001');
+  assert.strictEqual(res.idMappings[0].status, 'MAPPED');
+});
+
+// TEST 6: Dữ liệu JSON Blob hỏng -> Phải throw error an toàn
+runTest('6. Corrupted JSON string input throws safe error without crashing', () => {
   const migrator = new LegacyDataMigrator();
   let threw = false;
   try {
@@ -105,8 +140,8 @@ runTest('4. Corrupted JSON string input throws safe error without crashing', () 
   assert.strictEqual(threw, true);
 });
 
-// TEST 5: Thiếu UID -> Phải từ chối
-runTest('5. Missing UID is rejected immediately', () => {
+// TEST 7: Thiếu UID -> Phải từ chối ngay lập tức
+runTest('7. Missing UID is rejected immediately', () => {
   const migrator = new LegacyDataMigrator();
   let threw = false;
   try {

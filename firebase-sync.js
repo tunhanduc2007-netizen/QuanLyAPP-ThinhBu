@@ -101,68 +101,79 @@ class GrabCloudSync {
       try { this.unsubscribe(); } catch (e) {}
     }
 
-    const docRef = this.db.collection(this.collectionName).doc(this.roomId);
-
+    const uid = this.getCurrentUid();
     this.updateStatusBadge('syncing', 'Đang kết nối Cloud...');
 
-    this.unsubscribe = docRef.onSnapshot((doc) => {
-      if (doc.exists) {
-        const cloudData = doc.data();
+    if (uid && uid !== 'guest') {
+      // 1. PRIMARY FINANCIAL AUTHORITY: users/{uid}/transactions Subcollection
+      // Transaction Ledger là Financial Single Source of Truth (SSOT) duy nhất
+      const ledgerRef = this.db.collection('users').doc(uid).collection('transactions');
 
-        // Nếu thay đổi xuất phát từ chính thiết bị này thì bỏ qua
-        if (cloudData.updatedBy === this.deviceId) {
-          this.updateStatusBadge('online', 'Đồng bộ Realtime (Cloud)');
-          return;
-        }
+      this.unsubscribe = ledgerRef.onSnapshot((snapshot) => {
+        if (snapshot && !snapshot.empty) {
+          const cloudTxs = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data && data.id) cloudTxs.push(data);
+          });
 
-        // Nhận dữ liệu từ cloud và thực hiện Smart Merge để không làm mất transaction tạo khi offline
-        if (cloudData.payload && window.app) {
-          try {
-            const parsed = typeof cloudData.payload === 'string' ? JSON.parse(cloudData.payload) : cloudData.payload;
-            
-            // Hợp nhất danh sách giao dịch cục bộ và Cloud tránh ghi đè mất mát
+          if (window.app) {
             const localTxs = (window.app.data && window.app.data.transactions) || [];
-            const cloudTxs = (parsed && parsed.transactions) || [];
-            
             const txMap = new Map();
-            cloudTxs.forEach(tx => { if (tx && tx.id) txMap.set(tx.id, tx); });
-            // Ưu tiên bảo toàn các transaction vừa tạo offline tại máy này
-            localTxs.forEach(tx => { if (tx && tx.id) txMap.set(tx.id, tx); });
 
-            parsed.transactions = Array.from(txMap.values());
-            // Sắp xếp lại danh sách theo ID/thời gian mới nhất lên đầu
-            parsed.transactions.sort((a, b) => String(b.id).localeCompare(String(a.id)));
+            // Nạp toàn bộ authoritative transactions từ Firestore Ledger
+            cloudTxs.forEach(tx => txMap.set(tx.id, tx));
 
-            window.app.data = parsed;
-            const key = (window.app && window.app.storageKey) || 'finance_app_clean_user_v2';
-            localStorage.setItem(key, JSON.stringify(parsed));
-            if (window.app && typeof window.app.recalculateBalances === 'function') {
+            // Bảo toàn các transactions vừa tạo cục bộ khi offline chưa kịp đẩy lên
+            localTxs.forEach(tx => {
+              if (tx && tx.id && !txMap.has(tx.id)) {
+                txMap.set(tx.id, tx);
+              }
+            });
+
+            if (!window.app.data) window.app.data = {};
+            window.app.data.transactions = Array.from(txMap.values());
+            window.app.data.transactions.sort((a, b) => String(b.isoDate || b.id).localeCompare(String(a.isoDate || a.id)));
+
+            // Tự động đối soát số dư ví từ Ledger (Reconciliation Engine)
+            if (typeof window.app.reconcileBalancesFromLedger === 'function') {
+              window.app.reconcileBalancesFromLedger();
+            }
+            if (typeof window.app.recalculateBalances === 'function') {
               window.app.recalculateBalances();
             }
             window.app.renderAll();
-
-            const senderName = cloudData.driver || 'Thành viên';
-            window.app.showToast(`☁️ Đã đồng bộ từ Cloud (${senderName} vừa cập nhật)!`);
-            this.updateStatusBadge('online', 'Đồng bộ Realtime (Cloud)');
-          } catch (e) {
-            console.error('Lỗi phân tích dữ liệu Firestore:', e);
+            this.updateStatusBadge('online', 'Đồng bộ Realtime (Ledger SSOT)');
           }
+        } else {
+          // 2. LEGACY FALLBACK ONLY:
+          // Chỉ đọc fintrack_user_data nếu users/{uid}/transactions rỗng (tài khoản cũ chưa migrate)
+          console.log('[LEGACY FALLBACK] users/{uid}/transactions rỗng. Kiểm tra fintrack_user_data cho migration.');
+          const legacyDocRef = this.db.collection(this.collectionName).doc(this.roomId);
+          legacyDocRef.get().then(doc => {
+            if (doc.exists && doc.data()?.payload && window.app) {
+              const parsed = typeof doc.data().payload === 'string' ? JSON.parse(doc.data().payload) : doc.data().payload;
+              // Chỉ nạp nếu data local hoàn toàn rỗng để tránh stale snapshot ghi đè
+              if (!window.app.data || !window.app.data.transactions || window.app.data.transactions.length === 0) {
+                window.app.data = parsed;
+                if (typeof window.app.recalculateBalances === 'function') window.app.recalculateBalances();
+                window.app.renderAll();
+              }
+            }
+          }).catch(err => console.warn('Lỗi đọc Legacy Fallback:', err.message));
+          this.updateStatusBadge('online', 'Đồng bộ Realtime (Cloud)');
         }
-      } else {
-        // Tài liệu phòng chưa tồn tại trên Firestore -> đẩy dữ liệu hiện tại lên lần đầu
-        if (window.app && window.app.data) {
-          this.pushToCloud(window.app.data, true);
+      }, (error) => {
+        console.warn('⚠️ Firestore Ledger onSnapshot notice:', error.message);
+        if (error.code === 'permission-denied') {
+          this.updateStatusBadge('offline', 'Lưu trữ Cục bộ (Bảo mật)');
+        } else {
+          this.updateStatusBadge('offline', 'Lỗi Cloud: ' + (error.code || 'offline'));
         }
-        this.updateStatusBadge('online', 'Đồng bộ Realtime (Cloud)');
-      }
-    }, (error) => {
-      console.warn('⚠️ Firestore onSnapshot notice:', error.message);
-      if (error.code === 'permission-denied') {
-        this.updateStatusBadge('offline', 'Lưu trữ Cục bộ (Bảo mật)');
-      } else {
-        this.updateStatusBadge('offline', 'Lỗi Cloud: ' + (error.code || 'offline'));
-      }
-    });
+      });
+    } else {
+      this.updateStatusBadge('offline', 'Chế độ Cục bộ (Guest)');
+    }
   }
 
   // Đẩy dữ liệu lên Firebase Firestore
@@ -290,6 +301,22 @@ class GrabCloudSync {
     }
   }
 
+  // Ghi nhận số dư ví độc lập vào Subcollection users/{uid}/wallets/{walletId}
+  async writeWalletDoc(walletId, walletData) {
+    if (!walletId || !walletData) return;
+    const uid = this.getCurrentUid();
+    if (uid === 'guest' || !this.isFirebaseReady || !this.db) return;
+    try {
+      await this.db.collection('users').doc(uid).collection('wallets').doc(walletId).set({
+        ...walletData,
+        updatedAt: Date.now(),
+        deviceId: this.deviceId
+      }, { merge: true });
+    } catch (e) {
+      console.warn('⚠️ Lỗi ghi Wallet Subcollection:', e.message);
+    }
+  }
+
   // Quản lý hàng đợi Offline
   queueOfflineTransaction(uid, tx) {
     try {
@@ -303,7 +330,7 @@ class GrabCloudSync {
     } catch (e) {}
   }
 
-  // Đối soát và đẩy hàng đợi Offline lên Cloud khi Online trở lại
+  // Đối soát và đẩy hàng đợi Offline lên Cloud khi Online trở lại với Chunking an toàn (Criteria 7)
   async reconcileOfflineQueue() {
     const uid = this.getCurrentUid();
     const qKey = 'fintrack_offline_queue_' + uid;
@@ -316,15 +343,32 @@ class GrabCloudSync {
 
       if (!this.isFirebaseReady || !this.db) return;
 
-      const batch = this.db.batch();
-      queue.forEach(tx => {
-        const ref = this.db.collection('users').doc(uid).collection('transactions').doc(tx.id);
-        batch.set(ref, { ...tx, reconciledAt: Date.now(), deviceId: this.deviceId }, { merge: true });
-      });
+      // Firestore WriteBatch tối đa 500 operations. Chunk an toàn 400 operations/batch.
+      const CHUNK_SIZE = 400;
+      let committedCount = 0;
 
-      await batch.commit();
-      localStorage.removeItem(qKey);
-      console.log(`✅ Đã đối soát và đẩy ${queue.length} giao dịch offline lên Firestore!`);
+      while (queue.length > 0) {
+        const chunk = queue.slice(0, CHUNK_SIZE);
+        const batch = this.db.batch();
+        chunk.forEach(tx => {
+          const ref = this.db.collection('users').doc(uid).collection('transactions').doc(tx.id);
+          batch.set(ref, { ...tx, reconciledAt: Date.now(), deviceId: this.deviceId }, { merge: true });
+        });
+
+        // Commit tuần tự từng batch; không dùng Promise.all tránh mất kiểm soát trạng thái cục bộ
+        await batch.commit();
+        committedCount += chunk.length;
+
+        // Chỉ xóa các phần tử đã commit thành công khỏi queue
+        queue.splice(0, chunk.length);
+        if (queue.length > 0) {
+          localStorage.setItem(qKey, JSON.stringify(queue));
+        } else {
+          localStorage.removeItem(qKey);
+        }
+      }
+
+      console.log(`✅ Đã đối soát và đẩy ${committedCount} giao dịch offline lên Firestore!`);
     } catch (e) {
       console.warn('⚠️ Lỗi đối soát hàng đợi offline:', e.message);
     }
@@ -350,23 +394,46 @@ class GrabCloudSync {
       const txRef = this.db.collection('users').doc(uid).collection('transactions').doc(txRecord.id);
 
       await this.db.runTransaction(async (transaction) => {
+        // IDEMPOTENCY GUARD: Kiểm tra nếu transaction này đã được commit trước đó
+        const txDoc = await transaction.get(txRef);
+        if (txDoc.exists) {
+          console.warn(`[IDEMPOTENCY] Giao dịch chuyển tiền ${txRecord.id} đã được thực thi trước đó. Bỏ qua biến động số dư ví.`);
+          return;
+        }
+
         const fromDoc = await transaction.get(fromRef);
         const toDoc = await transaction.get(toRef);
 
-        const currentFromBal = fromDoc.exists ? (Number(fromDoc.data().balance) || 0) : 0;
-        const currentToBal = toDoc.exists ? (Number(toDoc.data().balance) || 0) : 0;
+        let currentFromBal = 0;
+        if (fromDoc.exists) {
+          currentFromBal = (Number(fromDoc.data().balance) || 0);
+        } else {
+          // Khởi tạo từ số dư local trước khi chuyển nếu doc trên Cloud chưa có
+          const localFrom = (window.app?.data?.wallets?.accounts || []).find(a => a.name === fromAccName);
+          currentFromBal = (localFrom ? (Number(localFrom.balance) || 0) : 0) + amount;
+        }
+
+        let currentToBal = 0;
+        if (toDoc.exists) {
+          currentToBal = (Number(toDoc.data().balance) || 0);
+        } else {
+          const localTo = (window.app?.data?.wallets?.accounts || []).find(a => a.name === toAccName);
+          currentToBal = (localTo ? (Number(localTo.balance) || 0) : 0) - amount;
+        }
 
         if (currentFromBal < amount) {
           throw new Error('Số dư ví nguồn không đủ trên Cloud');
         }
 
         transaction.set(fromRef, {
+          id: fromWalletId,
           name: fromAccName,
           balance: currentFromBal - amount,
           updatedAt: Date.now()
         }, { merge: true });
 
         transaction.set(toRef, {
+          id: toWalletId,
           name: toAccName,
           balance: currentToBal + amount,
           updatedAt: Date.now()
@@ -379,18 +446,41 @@ class GrabCloudSync {
         });
       });
 
-      // Đẩy thêm bản sao backward compatibility
-      this.pushToCloud(window.app.data);
+      // Cập nhật bản sao backup phái sinh (Derived Backup Only - không phải SSOT)
+      try {
+        if (window.app && window.app.data) {
+          this.pushToCloud(window.app.data);
+        }
+      } catch (backupErr) {
+        console.warn('⚠️ Lỗi ghi bản sao backup (không ảnh hưởng Ledger):', backupErr.message);
+      }
       return { success: true, mode: 'firestore-atomic' };
     } catch (err) {
-      console.warn('⚠️ Giao dịch Atomic trên Cloud cảnh báo:', err.message);
-      // Fallback lưu toàn bộ state để bảo toàn dữ liệu
-      this.pushToCloud(window.app.data);
-      return { success: true, mode: 'fallback-snapshot' };
+      console.warn('⚠️ Giao dịch Atomic trên Cloud thất bại:', err.message);
+      // KHÔNG ghi đè backup snapshot khi giao dịch atomic bị rollback để tránh divergence
+      return { success: false, error: err.message };
+    }
+  }
+
+  // Đọc toàn bộ Firestore Ledger Subcollection users/{uid}/transactions
+  async loadFirestoreLedger(uid) {
+    if (!this.isFirebaseReady || !this.db || !uid || uid === 'guest') return null;
+    try {
+      const snap = await this.db.collection('users').doc(uid).collection('transactions').get();
+      const txs = [];
+      snap.forEach(doc => {
+        txs.push(doc.data());
+      });
+      return txs;
+    } catch (e) {
+      console.warn('⚠️ Lỗi đọc Firestore Ledger:', e.message);
+      return null;
     }
   }
 
   // 3. Đẩy chỉ số Leaderboard toàn hệ thống với cơ chế che giấu danh tính (Privacy Masking)
+  // GHI CHÚ BẢO MẬT: Bảng xếp hạng public cần có projection riêng (Tier/Score) thay vì lộ thu nhập thật.
+  // [BUSINESS RULE REQUIRED]: Quy tắc xếp hạng, phân hạng tier, và chu kỳ cần phê duyệt từ Product Owner.
   async syncLeaderboardEntry(metric, amount, isAnonymous = false, customName = null) {
     if (!this.isFirebaseReady || !this.db) return;
     const uid = this.getCurrentUid();
@@ -401,12 +491,13 @@ class GrabCloudSync {
         ? 'Người dùng ẩn danh' 
         : (customName || this.currentDriver || 'Thành viên');
 
+      // Acceptance Model: { displayName, tier, score }
+      // TUYỆT ĐỐI KHÔNG LƯU: private UID, email, private income/expense, raw transaction, wallet balance
+      // [BUSINESS RULE REQUIRED]: Đánh dấu rõ ràng theo yêu cầu của Product Owner
       await this.db.collection('leaderboards').doc('monthly').collection('entries').doc(uid).set({
-        uid: uid,
         displayName: displayName,
-        metric: metric || 'total_income',
-        amount: Number(amount) || 0,
-        isAnonymous: !!isAnonymous,
+        tier: 'BUSINESS_RULE_REQUIRED',
+        score: 0,
         updatedAt: Date.now()
       }, { merge: true });
     } catch (e) {

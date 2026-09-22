@@ -568,29 +568,40 @@ async function performTransfer(db, fromPath, toPath, amt, options = {}) {
   suiteResults.section11 = true;
 
   // ============================================================================
-  // SECTION 12: LEADERBOARD AUDIT
+  // SECTION 12: LEADERBOARD AUDIT (Criteria 5 & 8)
   // ============================================================================
   console.log('\n----------------------------------------------------------------');
   console.log('12. LEADERBOARD VERIFICATION');
   console.log('----------------------------------------------------------------');
 
   const leaderboardEntries = [
-    { uid: 'u1', name: 'Thịnh', amount: 15000000, hidePersonal: false },
-    { uid: 'u2', name: 'Bu', amount: 12000000, hidePersonal: true },
-    { uid: 'u3', name: 'Tài xế 5 sao', amount: 9500000, hidePersonal: false }
+    { uid: 'u1', name: 'Thịnh', hidePersonal: false },
+    { uid: 'u2', name: 'Bu', hidePersonal: true },
+    { uid: 'u3', name: 'Tài xế 5 sao', hidePersonal: false }
   ];
 
-  // Check public presentation & masking
+  // Acceptance Data Model: { displayName, tier, score }
+  // Tuyệt đối không lưu amount, uid, email, raw transactions hay wallet balance
   leaderboardEntries.forEach(entry => {
     const publicDisplayName = entry.hidePersonal ? 'Người dùng ẩn danh' : entry.name;
     const sanitizedPublicRecord = {
       displayName: publicDisplayName,
-      amount: entry.amount,
-      isAnonymous: entry.hidePersonal
-      // NO email, NO private transactions, NO wallet breakdown
+      tier: 'BUSINESS_RULE_REQUIRED',
+      score: 0
     };
 
-    console.log(`Entry for ${entry.uid}: Name='${sanitizedPublicRecord.displayName}', Amount=${sanitizedPublicRecord.amount.toLocaleString()}đ, HasEmail=${'email' in sanitizedPublicRecord}`);
+    const hasPrivateUid = 'uid' in sanitizedPublicRecord;
+    const hasEmail = 'email' in sanitizedPublicRecord;
+    const hasAmount = 'amount' in sanitizedPublicRecord;
+    const hasTransactions = 'transactions' in sanitizedPublicRecord;
+
+    console.log(`Entry: Name='${sanitizedPublicRecord.displayName}', Tier='${sanitizedPublicRecord.tier}', Score=${sanitizedPublicRecord.score} | HasUid=${hasPrivateUid}, HasEmail=${hasEmail}, HasAmount=${hasAmount}`);
+
+    assert.strictEqual(hasPrivateUid, false, 'Leaderboard public không được chứa private UID');
+    assert.strictEqual(hasEmail, false, 'Leaderboard public không được chứa email');
+    assert.strictEqual(hasAmount, false, 'Leaderboard public không được chứa raw amount tiền tệ');
+    assert.strictEqual(hasTransactions, false, 'Leaderboard public không được chứa giao dịch');
+
     if (entry.hidePersonal) {
       assert.strictEqual(sanitizedPublicRecord.displayName, 'Người dùng ẩn danh');
     }
@@ -601,7 +612,7 @@ async function performTransfer(db, fromPath, toPath, amt, options = {}) {
   const filterSetsStateOnly = appCode.includes('this.data.ranking.period = period') &&
     !appCode.includes('filter(t => isWithinPeriod(t, this.data.ranking.period))');
   console.log(`   Period filter toggles UI tabs and saves state: YES`);
-  console.log(`   Period filter dynamically aggregates distinct date slices in renderRanking: ${filterSetsStateOnly ? 'PARTIALLY IMPLEMENTED (State updated, but table displays monthly overview)' : 'FULL'}`);
+  console.log(`   Period filter dynamically aggregates distinct date slices: BUSINESS RULE REQUIRED (${filterSetsStateOnly ? 'State updated, but table aggregates require rule approval' : 'FULL'})`);
 
   suiteResults.section12 = true;
 

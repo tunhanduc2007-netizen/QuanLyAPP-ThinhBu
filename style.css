@@ -1109,14 +1109,16 @@ body {
 }
 
 /* ===================================================
-   5. SCREEN: RANKING (DARK THEME CHUẨN ẢNH)
+   5. SCREEN: RANKING (THEME-ADAPTIVE & MODERN)
    =================================================== */
 .ranking-container-theme {
-  background: #0B0F17;
-  color: #F9FAFB;
-  margin: -12px -18px -95px -18px;
-  padding: 12px 18px 110px 18px;
-  min-height: 100%;
+  background: transparent;
+  color: var(--text-main);
+  margin: 0;
+  padding: 0 0 20px 0;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .ranking-header {
@@ -1124,29 +1126,76 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 16px;
+  padding-top: 2px;
 }
 
 .ranking-title {
   font-size: 20px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: var(--text-main);
+  letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
 }
 
+.ranking-header-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-green-dark);
+  background: var(--primary-green-light);
+  border: 1px solid var(--primary-green-border);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+}
+
+[data-theme="dark"] .ranking-header-badge {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34D399;
+}
+
+/* Secondary period filter tuning */
+.segmented-control.ranking-period-filter {
+  margin-bottom: 16px;
+}
+
+.segmented-control.ranking-period-filter .segmented-tab {
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+/* Ranking Card Items */
 .ranking-card-item {
-  background: #161F2E;
-  border: 1px solid #243042;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
-  padding: 13px 14px;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+.ranking-card-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
+/* Highlight for Current User - Light & Dark */
 .ranking-card-item.current-user {
-  background: #064E3B;
+  background: linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%);
+  border: 1.5px solid #10B981;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.14);
+}
+
+[data-theme="dark"] .ranking-card-item.current-user {
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.6) 0%, rgba(6, 95, 70, 0.4) 100%);
   border-color: #059669;
-  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
 }
 
 .ranking-left {
@@ -1156,87 +1205,233 @@ body {
 }
 
 .rank-badge-podium {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 20px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 .rank-number-normal {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
-  color: #94A3B8;
+  color: var(--text-sub);
+  background: var(--bg-card-subtle);
+  border-radius: 50%;
 }
 
 .rank-avatar {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   object-fit: cover;
+  border: 2px solid var(--border-color);
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.ranking-card-item.current-user .rank-avatar {
+  border-color: var(--primary-green);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
 }
 
 .rank-user-name {
-  font-size: 14px;
+  font-size: 14.5px;
   font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.2px;
+}
+
+.ranking-card-item.current-user .rank-user-name {
+  color: #065F46;
+  font-weight: 800;
+}
+
+[data-theme="dark"] .ranking-card-item.current-user .rank-user-name {
   color: #FFFFFF;
 }
 
 .rank-user-tag {
-  display: inline-block;
-  background: #059669;
+  display: inline-flex;
+  align-items: center;
+  background: #10B981;
   color: #FFFFFF;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-top: 3px;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
 }
 
 .rank-right {
   text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .rank-amount {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
-  color: #FFFFFF;
+  color: var(--text-main);
+  letter-spacing: -0.3px;
+}
+
+.ranking-card-item.current-user .rank-amount {
+  color: #047857;
+  font-size: 16px;
+}
+
+[data-theme="dark"] .ranking-card-item.current-user .rank-amount {
+  color: #34D399;
 }
 
 .rank-growth {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
-  color: #10B981;
-}
-
-.ranking-alert-pill {
-  background: #162436;
-  border: 1px solid #22374E;
-  border-radius: var(--radius-pill);
-  padding: 10px 16px;
+  color: var(--primary-green);
+  margin-top: 2px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #10B981;
-  margin-top: 14px;
-  margin-bottom: 12px;
+  gap: 2px;
 }
 
+.ranking-card-item.current-user .rank-growth {
+  color: #059669;
+}
+
+[data-theme="dark"] .ranking-card-item.current-user .rank-growth {
+  color: #34D399;
+}
+
+/* Ranking Alert Pill */
+.ranking-alert-pill {
+  background: var(--primary-green-light);
+  border: 1px solid var(--primary-green-border);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #065F46;
+  margin-top: 6px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .ranking-alert-pill {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #34D399;
+}
+
+/* Privacy Switch Container */
 .ranking-privacy-switch {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 4px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+
+.privacy-switch-text-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.privacy-switch-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.privacy-switch-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Ranking Invite Card for Solo / Small Community */
+.ranking-invite-card {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 16px 16px;
+  margin-top: 4px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ranking-invite-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--primary-green-light);
+  color: var(--primary-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .ranking-invite-icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34D399;
+}
+
+.ranking-invite-content {
+  flex: 1;
+}
+
+.ranking-invite-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.ranking-invite-desc {
   font-size: 12px;
-  color: #94A3B8;
+  color: var(--text-muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.ranking-invite-btn {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 7px 12px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ranking-invite-btn:active {
+  background: var(--primary-green-light);
+  color: var(--primary-green);
+  border-color: var(--primary-green-border);
 }
 
 /* ===================================================

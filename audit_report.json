@@ -68,19 +68,19 @@
       "section": "6. Financial Integrity",
       "name": "Stress Test 10,000 Transactions",
       "status": "PASS",
-      "reason": "Khớp 100% (0đ lệch) [1ms]"
+      "reason": "Khớp 100% (0đ lệch) [0ms]"
     },
     {
       "section": "6. Financial Integrity",
       "name": "Stress Test 50,000 Transactions",
       "status": "PASS",
-      "reason": "Khớp 100% (0đ lệch) [1ms]"
+      "reason": "Khớp 100% (0đ lệch) [2ms]"
     },
     {
       "section": "6. Financial Integrity",
       "name": "Stress Test 100,000 Transactions",
       "status": "PASS",
-      "reason": "Khớp 100% (0đ lệch) [3ms]"
+      "reason": "Khớp 100% (0đ lệch) [2ms]"
     },
     {
       "section": "7. Ranking",

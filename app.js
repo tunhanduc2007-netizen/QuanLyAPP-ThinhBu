@@ -86,11 +86,36 @@ class FinanceApp {
       this.saveData();
     }
 
-    // Đảm bảo dữ liệu danh bạ bạn bè luôn sẵn sàng
+    // Đảm bảo dữ liệu danh bạ bạn bè luôn sẵn sàng & LOẠI BỎ TRIỆT ĐỂ DỮ LIỆU MẪU / GIẢ LẬP
     if (!this.data.friends) {
-      this.data.friends = (typeof DEFAULT_FINANCE_DATA !== 'undefined' && DEFAULT_FINANCE_DATA.friends)
-        ? JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA.friends))
-        : { tag: '@nhantuduc', activeTab: 'list', list: [], requests: [] };
+      this.data.friends = { tag: this.getMyFriendTag(), activeTab: 'list', list: [], requests: [] };
+    }
+    if (!this.data.friends.tag || this.data.friends.tag === '@nhantuduc') {
+      this.data.friends.tag = this.getMyFriendTag();
+    }
+    if (Array.isArray(this.data.friends.list)) {
+      this.data.friends.list = this.data.friends.list.filter(f => 
+        !['fr-1', 'fr-2'].includes(f.id) && f.tag !== '@thinh_grab' && f.tag !== '@maianh_99'
+      );
+    } else {
+      this.data.friends.list = [];
+    }
+    if (Array.isArray(this.data.friends.requests)) {
+      this.data.friends.requests = this.data.friends.requests.filter(r => 
+        r.id !== 'req-1' && r.fromTag !== '@nam_tech'
+      );
+    } else {
+      this.data.friends.requests = [];
+    }
+
+    // Làm sạch thông báo mẫu
+    if (Array.isArray(this.data.notifications)) {
+      this.data.notifications = this.data.notifications.filter(n => n.id !== 'notif-welcome');
+    }
+
+    // Làm sạch ảnh mock unsplash nếu còn sót trong user.avatar
+    if (this.data.user && this.data.user.avatar && this.data.user.avatar.includes('unsplash.com')) {
+      this.data.user.avatar = '';
     }
 
     // Phục hồi hồ sơ đăng nhập đã lưu
@@ -99,11 +124,14 @@ class FinanceApp {
         const u = JSON.parse(savedProfile);
         if (u.name) this.data.user.name = u.name;
         if (u.email) this.data.user.email = u.email;
-        if (u.avatar) this.data.user.avatar = u.avatar;
+        if (u.avatar && !u.avatar.includes('unsplash.com')) this.data.user.avatar = u.avatar;
         if (u.name) this.data.user.nickname = `${u.name} 👋`;
         if (u.uid) this.data.user.uid = u.uid;
       } catch (e) {}
     }
+
+    // Lưu lại trạng thái sạch sau khi lọc bỏ mock data
+    this.saveData();
   }
 
   saveData() {
@@ -202,6 +230,95 @@ class FinanceApp {
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  // Chuẩn sinh ID duy nhất chống xung đột phân tán (Criteria 2: UUID / High-entropy crypto)
+  generateAppUUID(prefix = 'tx') {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `${prefix}-${crypto.randomUUID()}`;
+    }
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      return `${prefix}-${hex}`;
+    }
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+  }
+
+  // RECONCILIATION ENGINE: Đối soát Ledger là nguồn dữ liệu tài chính chân thực (Criteria 1, 3, 4)
+  reconcileBalancesFromLedger() {
+    if (!this.data) return { match: true, drift: 0 };
+    const txs = this.data.transactions || [];
+    let ledgerIncome = 0;
+    let ledgerExpense = 0;
+    const accountDeltas = { 'Ngân hàng': 0, 'Tiền mặt': 0 };
+
+    txs.forEach(tx => {
+      const amt = Number(tx.amount) || 0;
+      if (tx.type === 'income') {
+        ledgerIncome += amt;
+        const accName = tx.account || 'Ngân hàng';
+        accountDeltas[accName] = (accountDeltas[accName] || 0) + amt;
+      } else if (tx.type === 'expense') {
+        ledgerExpense += amt;
+        const accName = tx.account || 'Ngân hàng';
+        accountDeltas[accName] = (accountDeltas[accName] || 0) - amt;
+      } else if (tx.type === 'transfer') {
+        const from = tx.fromAccount || (tx.account && tx.account.split(' → ')[0]) || 'Ngân hàng';
+        const to = tx.toAccount || (tx.account && tx.account.split(' → ')[1]) || 'Tiền mặt';
+        accountDeltas[from] = (accountDeltas[from] || 0) - amt;
+        accountDeltas[to] = (accountDeltas[to] || 0) + amt;
+      }
+    });
+
+    let initialBank = 0;
+    let initialCash = 0;
+    if (this.data.wallets && typeof this.data.wallets.initialBankBalance === 'number') {
+      initialBank = this.data.wallets.initialBankBalance;
+      initialCash = this.data.wallets.initialCashBalance || 0;
+    } else {
+      const currentBank = (this.data.wallets?.accounts || []).find(a => a.name === 'Ngân hàng')?.balance || 0;
+      const currentCash = (this.data.wallets?.accounts || []).find(a => a.name === 'Tiền mặt')?.balance || 0;
+      initialBank = currentBank - (accountDeltas['Ngân hàng'] || 0);
+      initialCash = currentCash - (accountDeltas['Tiền mặt'] || 0);
+      if (!this.data.wallets) this.data.wallets = { totalBalance: 0, accounts: [] };
+      this.data.wallets.initialBankBalance = initialBank;
+      this.data.wallets.initialCashBalance = initialCash;
+    }
+
+    const calcBankBal = initialBank + (accountDeltas['Ngân hàng'] || 0);
+    const calcCashBal = initialCash + (accountDeltas['Tiền mặt'] || 0);
+    const ledgerTotal = calcBankBal + calcCashBal;
+
+    const currBank = (this.data.wallets?.accounts || []).find(a => a.name === 'Ngân hàng')?.balance || 0;
+    const currCash = (this.data.wallets?.accounts || []).find(a => a.name === 'Tiền mặt')?.balance || 0;
+    const currentTotal = currBank + currCash;
+
+    const drift = currentTotal - ledgerTotal;
+    const driftDetected = Math.abs(drift) > 0.001;
+    if (driftDetected) {
+      console.warn(`[RECONCILIATION] DRIFT DETECTED: Phát hiện độ lệch số dư (${drift}đ). Đồng bộ ví về giá trị Ledger chân thực.`);
+      this.data.wallets.accounts = [
+        { id: "acc-bank", name: "Ngân hàng", icon: "landmark", balance: calcBankBal, color: "#10B981", bg: "#D1FAE5" },
+        { id: "acc-cash", name: "Tiền mặt", icon: "banknote", balance: calcCashBal, color: "#06B6D4", bg: "#CFFAFE" }
+      ];
+      this.data.wallets.totalBalance = ledgerTotal;
+      if (this.data.overview) {
+        this.data.overview.currentBalance = ledgerTotal;
+      }
+    }
+
+    return {
+      driftDetected,
+      match: !driftDetected,
+      drift,
+      ledgerTotal,
+      ledgerIncome,
+      ledgerExpense,
+      calcBankBal,
+      calcCashBal
+    };
   }
 
   // CORE FINANCIAL ENGINE: Chuẩn hóa và đồng bộ số dư toàn hệ thống
@@ -588,13 +705,15 @@ class FinanceApp {
       switchScreenDOM();
     }
 
-    // Re-render chart nếu màn hình có canvas
+    // Re-render chart nếu màn hình có canvas hoặc dữ liệu động
     if (screenId === 'screen-dashboard') {
       setTimeout(() => this.renderDashboardChart(), 80);
     } else if (screenId === 'screen-analytics') {
       setTimeout(() => this.renderAnalyticsCharts(), 80);
     } else if (screenId === 'screen-income-sources') {
       setTimeout(() => this.renderIncomeSourcesPie(), 80);
+    } else if (screenId === 'screen-ranking') {
+      this.renderRanking();
     }
 
     this.setupIcons();
@@ -942,6 +1061,14 @@ class FinanceApp {
     const listEl = document.getElementById('allTransactionsList');
     if (!listEl) return;
 
+    // Reset limit nếu đổi bộ lọc hoặc từ khóa tìm kiếm
+    if (this.currentTxFilter !== filterType || this.currentTxSearch !== searchQuery) {
+      this.txPageLimit = 50;
+    }
+    this.currentTxFilter = filterType;
+    this.currentTxSearch = searchQuery;
+    const pageLimit = this.txPageLimit || 50;
+
     let items = this.data.transactions || [];
     if (filterType !== 'all') {
       items = items.filter(tx => tx.type === filterType);
@@ -962,7 +1089,11 @@ class FinanceApp {
       return;
     }
 
-    listEl.innerHTML = items.map(tx => {
+    // Phân trang UI: giới hạn số lượng render trên DOM (Criteria 4 & Criteria 10)
+    // KHÔNG dùng danh sách cắt ngắn này để tính số dư tài chính (Reconciliation chạy trên toàn bộ Ledger)
+    const itemsToRender = items.slice(0, pageLimit);
+
+    let html = itemsToRender.map(tx => {
       const isIncome = tx.type === 'income';
       const isTransfer = tx.type === 'transfer';
       const color = isIncome ? '#10B981' : (isTransfer ? '#3B82F6' : '#EF4444');
@@ -991,7 +1122,25 @@ class FinanceApp {
       `;
     }).join('');
 
+    // Nút Tải thêm giao dịch nếu còn phần tử tiếp theo trong Ledger
+    if (items.length > pageLimit) {
+      html += `
+        <div style="text-align: center; padding: 14px 0 6px 0;">
+          <button type="button" class="btn-load-more" onclick="app.loadMoreTransactions()" style="background: var(--bg-card, #ffffff); border: 1px solid var(--border-color, #E2E8F0); color: var(--text-primary, #1E293B); padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <i data-lucide="chevron-down" style="width: 16px; height: 16px;"></i>
+            Xem thêm giao dịch (đang hiển thị ${itemsToRender.length}/${items.length})
+          </button>
+        </div>
+      `;
+    }
+
+    listEl.innerHTML = html;
     this.setupIcons();
+  }
+
+  loadMoreTransactions() {
+    this.txPageLimit = (this.txPageLimit || 50) + 50;
+    this.renderTransactionsList(this.currentTxFilter || 'all', this.currentTxSearch || '');
   }
 
   filterTxTab(type, tabEl) {
@@ -1196,7 +1345,7 @@ class FinanceApp {
       const targetAcc = this.data.wallets.accounts.find(a => a.name === targetName) || this.data.wallets.accounts[0];
 
       const newTx = {
-        id: 'tx-' + Date.now(),
+        id: this.generateAppUUID('tx'),
         title: note,
         category: this.selectedCategory,
         date: dateDisplay,
@@ -1227,7 +1376,7 @@ class FinanceApp {
       if (this.currentAddType === 'expense' && (dateVal === todayIso || dateVal === '2026-09-20')) {
         if (!this.data.todayExpenses) this.data.todayExpenses = [];
         this.data.todayExpenses.unshift({
-          id: 'te-' + Date.now(),
+          id: this.generateAppUUID('te'),
           title: note,
           amount: amount,
           icon: this.selectedCatIcon || 'shopping-bag',
@@ -1245,6 +1394,10 @@ class FinanceApp {
       if (window.grabSync) {
         if (typeof window.grabSync.writeTransactionDoc === 'function') {
           window.grabSync.writeTransactionDoc(newTx);
+        }
+        if (targetAcc && typeof window.grabSync.writeWalletDoc === 'function') {
+          const wId = targetAcc.id || (targetAcc.name === 'Tiền mặt' ? 'acc-cash' : 'acc-bank');
+          window.grabSync.writeWalletDoc(wId, targetAcc);
         }
         if (this.currentAddType === 'income' && typeof window.grabSync.syncLeaderboardEntry === 'function') {
           window.grabSync.syncLeaderboardEntry('total_income', this.data.overview.monthlyIncome, this.data.ranking?.hidePersonal, this.data.user?.name);
@@ -1280,7 +1433,7 @@ class FinanceApp {
 
     const list = this.data.ranking.leaderboard || [];
 
-    container.innerHTML = list.map((item, idx) => {
+    let html = list.map((item, idx) => {
       const isTop1 = item.rank === 1;
       const isTop2 = item.rank === 2;
       const isTop3 = item.rank === 3;
@@ -1291,31 +1444,72 @@ class FinanceApp {
       else if (isTop2) badge = `<span class="rank-badge-podium">🥈</span>`;
       else if (isTop3) badge = `<span class="rank-badge-podium">🥉</span>`;
 
+      const avatarSrc = item.avatar || this.getDefaultAvatarUrl(item.name);
+
       return `
         <div class="ranking-card-item ${isCurrent ? 'current-user' : ''}">
           <div class="ranking-left">
             ${badge}
-            <img src="${item.avatar}" class="rank-avatar">
+            <img src="${avatarSrc}" class="rank-avatar" alt="${this.escapeHtml(item.name)}" onerror="this.onerror=null;this.src='${this.getDefaultAvatarUrl(item.name)}';">
             <div>
-              <div class="rank-user-name">${this.data.ranking.hidePersonal && isCurrent ? 'Bạn (Ẩn danh)' : item.name}</div>
+              <div class="rank-user-name">${this.data.ranking?.hidePersonal && isCurrent ? 'Bạn (Ẩn danh)' : this.escapeHtml(item.name)}</div>
               ${isCurrent ? `<span class="rank-user-tag">Bạn đang đứng #${item.rank}</span>` : ''}
             </div>
           </div>
           <div class="rank-right">
             <div class="rank-amount">${this.formatVND(item.amount)}</div>
-            <div class="rank-growth">+${item.growth}%</div>
+            <div class="rank-growth">+${item.growth || 0}%</div>
           </div>
         </div>
       `;
     }).join('');
+
+    // Hiển thị thẻ kết nối cộng đồng/bạn bè khi chỉ có 1 người dùng trên danh sách
+    if (list.length <= 1) {
+      html += `
+        <div class="ranking-invite-card">
+          <div class="ranking-invite-icon">
+            <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div class="ranking-invite-content">
+            <div class="ranking-invite-title">Đua top cùng đồng nghiệp</div>
+            <div class="ranking-invite-desc">Kết nối bạn bè hoặc tham gia nhóm tài xế để theo dõi và so tài thứ hạng mỗi ngày!</div>
+            <button class="ranking-invite-btn" onclick="app.navTo('screen-friends')">
+              <i data-lucide="user-plus" style="width: 14px; height: 14px;"></i>
+              <span>Xem danh sách bạn bè</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
 
     const alertText = document.getElementById('rankAlertText');
     if (alertText) {
       if (list.length <= 1) {
         alertText.textContent = "Bạn đang dẫn đầu bảng xếp hạng cá nhân! 🎉";
       } else {
-        alertText.textContent = "Bảng xếp hạng đang cập nhật.";
+        alertText.textContent = "Bảng xếp hạng đang cập nhật theo thời gian thực.";
       }
+    }
+
+    // Đồng bộ trạng thái switch Ẩn thông tin cá nhân
+    const privacyToggle = document.getElementById('rankPrivacyToggle');
+    if (privacyToggle) {
+      privacyToggle.checked = !!this.data.ranking?.hidePersonal;
+    }
+
+    // Cập nhật huy hiệu kỳ xếp hạng trên header
+    const badge = document.getElementById('rankSeasonBadge');
+    if (badge && this.data.ranking?.period) {
+      const periodMap = {
+        'today': 'Hôm nay',
+        'this_week': 'Tuần này',
+        'this_month': 'Tháng này',
+        'this_year': 'Năm nay'
+      };
+      badge.textContent = periodMap[this.data.ranking.period] || 'Tuần này';
     }
 
     this.setupIcons();
@@ -1560,7 +1754,7 @@ class FinanceApp {
     const isoDate = `${now.getFullYear()}-${monthStr}-${dayStr}`;
 
     const tx = {
-      id: 'tx-' + Date.now(),
+      id: this.generateAppUUID('tx'),
       title: `Tích lũy: ${goal.title}`,
       category: 'Mục tiêu',
       date: dateDisplay,
@@ -1578,6 +1772,17 @@ class FinanceApp {
 
     this.recalculateBalances();
     this.saveData();
+
+    if (window.grabSync) {
+      if (typeof window.grabSync.writeTransactionDoc === 'function') {
+        window.grabSync.writeTransactionDoc(tx);
+      }
+      if (typeof window.grabSync.writeWalletDoc === 'function') {
+        const wId = sourceAcc.id || (sourceAcc.name === 'Tiền mặt' ? 'acc-cash' : 'acc-bank');
+        window.grabSync.writeWalletDoc(wId, sourceAcc);
+      }
+    }
+
     this.playCoinSound();
     this.triggerHaptic('medium');
     if (goal.percent >= 100) {
@@ -1616,7 +1821,7 @@ class FinanceApp {
     const pct = Math.min(100, Math.round((current / target) * 100));
 
     this.data.goals.push({
-      id: 'gl-' + Date.now(),
+      id: this.generateAppUUID('gl'),
       title: title,
       icon: "target",
       current: current,
@@ -1649,25 +1854,32 @@ class FinanceApp {
       if (this.analyticsBar) this.analyticsBar.destroy();
 
       const txs = this.data.transactions || [];
-      const mInc = [0, 0, 0, 0, 0, 0]; // T7, T8, T9, T10, T11, T12
+      const monthLabels = [];
+      const monthKeys = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const m = d.getMonth() + 1;
+        const y = d.getFullYear();
+        monthLabels.push(`T${m}`);
+        monthKeys.push(`${y}-${String(m).padStart(2, '0')}`);
+      }
+      const mInc = [0, 0, 0, 0, 0, 0];
       const mExp = [0, 0, 0, 0, 0, 0];
       txs.forEach(tx => {
         if (!tx.isoDate) return;
-        const parts = tx.isoDate.split('-');
-        if (parts.length >= 2) {
-          const m = parseInt(parts[1], 10);
-          if (m >= 7 && m <= 12) {
-            const idx = m - 7;
-            if (tx.type === 'income') mInc[idx] += (Number(tx.amount) || 0);
-            if (tx.type === 'expense') mExp[idx] += (Number(tx.amount) || 0);
-          }
+        const ym = tx.isoDate.substring(0, 7);
+        const idx = monthKeys.indexOf(ym);
+        if (idx !== -1) {
+          if (tx.type === 'income') mInc[idx] += (Number(tx.amount) || 0);
+          if (tx.type === 'expense') mExp[idx] += (Number(tx.amount) || 0);
         }
       });
 
       this.analyticsBar = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: ['T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
+          labels: monthLabels,
           datasets: [
             {
               label: 'Thu nhập',
@@ -1982,9 +2194,15 @@ class FinanceApp {
       const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
       const isoDate = `${now.getFullYear()}-${monthStr}-${dayStr}`;
 
-      // Ghi nhận vào danh sách transactions chính
+      // Ghi nhận vào danh sách transactions chính theo chuẩn Transfer Model (Criteria 5)
+      const sourceWId = accFrom.id || (from === 'Tiền mặt' ? 'acc-cash' : 'acc-bank');
+      const destWId = accTo.id || (to === 'Tiền mặt' ? 'acc-cash' : 'acc-bank');
       const transferTx = {
-        id: 'tx-' + Date.now(),
+        id: this.generateAppUUID('tx'),
+        sourceWalletId: sourceWId,
+        destinationWalletId: destWId,
+        fromAccount: from,
+        toAccount: to,
         title: `Chuyển tiền: ${from} → ${to}`,
         category: 'Chuyển khoản',
         date: dateDisplay,
@@ -2002,7 +2220,7 @@ class FinanceApp {
 
       if (!this.data.wallets.recentTransactions) this.data.wallets.recentTransactions = [];
       this.data.wallets.recentTransactions.unshift({
-        id: 'wt-' + Date.now(),
+        id: this.generateAppUUID('wt'),
         account: `${from} → ${to}`,
         date: "Hôm nay",
         amount: amt,
@@ -2137,12 +2355,41 @@ class FinanceApp {
   // ===================================================
   // 15. FRIENDS SYSTEM (BẠN BÈ & KẾT BẠN)
   // ===================================================
-  getMyFriendTag() {
-    if (this.data?.friends?.tag) return this.data.friends.tag;
-    const base = (this.data?.user?.email ? this.data.user.email.split('@')[0] : (this.data?.user?.username || this.data?.user?.name || 'user'))
+  generateFriendTag(query, displayName) {
+    const raw = (query.startsWith('@') ? query.slice(1) : (displayName || query || 'user'))
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
       .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '');
-    return '@' + (base || 'user');
+      .replace(/[^a-z0-9]/g, '');
+
+    // Nếu người dùng đã gõ ID có sẵn số ở đuôi (ví dụ: @nghia1234), giữ nguyên
+    if (/\d{2,}/.test(raw)) {
+      return '@' + raw;
+    }
+
+    // Nếu chưa có dãy số, gán thêm dãy 4 số ngẫu nhiên chuẩn (ví dụ: @tunhannghia4821)
+    const randSuffix = Math.floor(1000 + Math.random() * 9000);
+    return '@' + (raw || 'user') + randSuffix;
+  }
+
+  getMyFriendTag() {
+    if (this.data?.friends?.tag && this.data.friends.tag !== '@nhantuduc' && this.data.friends.tag !== '' && this.data.friends.tag !== '@user') {
+      return this.data.friends.tag;
+    }
+    const raw = (this.data?.user?.email ? this.data.user.email.split('@')[0] : (this.data?.user?.username || this.data?.user?.name || 'user'))
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+    const base = raw || 'user';
+    const tag = /\d{2,}/.test(base) ? ('@' + base) : ('@' + base + Math.floor(1000 + Math.random() * 9000));
+    if (this.data?.friends) {
+      this.data.friends.tag = tag;
+    }
+    return tag;
   }
 
   renderFriends() {
@@ -2156,6 +2403,16 @@ class FinanceApp {
     }
     if (!Array.isArray(this.data.friends.list)) this.data.friends.list = [];
     if (!Array.isArray(this.data.friends.requests)) this.data.friends.requests = [];
+
+    // Tự động chuẩn hóa và gắn số ngẫu nhiên cho bạn bè cũ có tag lỗi font / tiếng Việt
+    this.data.friends.list.forEach(f => {
+      if (!f.tag || /[^\x00-\x7F]/.test(f.tag) || !/\d{2,}/.test(f.tag)) {
+        f.tag = this.generateFriendTag(f.tag || f.name, f.name);
+      }
+      if (f.name) {
+        f.name = f.name.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      }
+    });
 
     const myTag = this.getMyFriendTag();
     const myName = this.data.user?.name || 'Người dùng';
@@ -2339,13 +2596,14 @@ class FinanceApp {
       return;
     }
 
-    // Tạo bạn bè mới
-    const tag = query.startsWith('@') ? query : ('@' + query.toLowerCase().replace(/\s+/g, ''));
+    // Tạo bạn bè mới: Viết hoa chuẩn từng từ và tạo tag không dấu kèm dãy số ngẫu nhiên
     let displayName = query.startsWith('@') ? query.slice(1) : query;
-    displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+    displayName = displayName.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+
+    const tag = this.generateFriendTag(query, displayName);
 
     const newFriend = {
-      id: 'fr_' + Date.now(),
+      id: this.generateAppUUID('fr'),
       name: displayName,
       tag: tag,
       avatar: this.getDefaultAvatarUrl(displayName),
@@ -2378,7 +2636,7 @@ class FinanceApp {
 
     if (!Array.isArray(this.data.friends.list)) this.data.friends.list = [];
     this.data.friends.list.unshift({
-      id: 'fr_' + Date.now(),
+      id: this.generateAppUUID('fr'),
       name: req.fromName,
       tag: req.fromTag,
       avatar: req.avatar || this.getDefaultAvatarUrl(req.fromName),
@@ -2514,7 +2772,18 @@ class FinanceApp {
 
   getLocalAccounts() {
     try {
-      return JSON.parse(localStorage.getItem('finance_local_accounts') || '{}');
+      const accounts = JSON.parse(localStorage.getItem('finance_local_accounts') || '{}');
+      let cleaned = false;
+      Object.keys(accounts).forEach(k => {
+        if (accounts[k] && accounts[k].password) {
+          delete accounts[k].password;
+          cleaned = true;
+        }
+      });
+      if (cleaned) {
+        localStorage.setItem('finance_local_accounts', JSON.stringify(accounts));
+      }
+      return accounts;
     } catch (e) {
       return {};
     }
@@ -2522,11 +2791,31 @@ class FinanceApp {
 
   saveLocalAccount(username, accountData) {
     const accounts = this.getLocalAccounts();
-    accounts[username.toLowerCase()] = accountData;
-    if (accountData.email) {
-      accounts[accountData.email.toLowerCase()] = accountData;
+    const sanitized = { ...accountData };
+    delete sanitized.password; // Không lưu trữ mật khẩu dạng plaintext trong localStorage
+    accounts[username.toLowerCase()] = sanitized;
+    if (sanitized.email) {
+      accounts[sanitized.email.toLowerCase()] = sanitized;
     }
     localStorage.setItem('finance_local_accounts', JSON.stringify(accounts));
+  }
+
+  removeLocalAccount(username, email) {
+    try {
+      const accounts = this.getLocalAccounts();
+      let changed = false;
+      if (username && accounts[username.toLowerCase()]) {
+        delete accounts[username.toLowerCase()];
+        changed = true;
+      }
+      if (email && accounts[email.toLowerCase()]) {
+        delete accounts[email.toLowerCase()];
+        changed = true;
+      }
+      if (changed) {
+        localStorage.setItem('finance_local_accounts', JSON.stringify(accounts));
+      }
+    } catch (e) {}
   }
 
   async handleRegisterWithCredentials() {
@@ -2601,7 +2890,6 @@ class FinanceApp {
         name: fullName,
         username: rawUser,
         email: email,
-        password: password,
         uid: uid,
         avatar: this.getDefaultAvatarUrl(fullName),
         createdAt: Date.now()
@@ -2659,12 +2947,11 @@ class FinanceApp {
           const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
           const user = userCredential.user;
           if (user) {
-            // Cập nhật lại cache local với UID chuẩn của Firebase
+            // Cập nhật lại cache local với UID chuẩn của Firebase (không lưu password)
             this.saveLocalAccount(rawUser, {
               name: user.displayName || rawUser,
               username: rawUser,
               email: user.email || email,
-              password: password,
               uid: user.uid,
               avatar: user.photoURL || this.getDefaultAvatarUrl(user.displayName || rawUser)
             });
@@ -2681,30 +2968,47 @@ class FinanceApp {
         } catch (fbErr) {
           console.warn('Firebase Auth email login check:', fbErr.code, fbErr.message);
           if (fbErr.code === 'auth/wrong-password') {
-            this.showToast('Mật khẩu không chính xác!');
+            this.showToast('⚠️ Mật khẩu không chính xác!');
             return;
           }
-          // Nếu user-not-found hoặc lỗi mạng, tiếp tục kiểm tra tài khoản offline dự phòng bên dưới
+          if (
+            fbErr.code === 'auth/user-not-found' || 
+            fbErr.code === 'auth/invalid-login-credentials' || 
+            fbErr.code === 'auth/invalid-credential'
+          ) {
+            this.removeLocalAccount(rawUser, email);
+            this.showToast('⚠️ Tài khoản này không tồn tại hoặc đã bị xóa khỏi hệ thống!');
+            return;
+          }
+          if (fbErr.code === 'auth/user-disabled') {
+            this.showToast('⚠️ Tài khoản này đã bị vô hiệu hóa hoặc tạm khóa!');
+            return;
+          }
+          if (fbErr.code === 'auth/too-many-requests') {
+            this.showToast('⚠️ Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau ít phút!');
+            return;
+          }
+          // Chỉ dự phòng ngoại tuyến khi thực sự mất mạng (offline)
+          if (fbErr.code !== 'auth/network-request-failed' && navigator.onLine) {
+            this.removeLocalAccount(rawUser, email);
+            this.showToast('⚠️ Không tìm thấy tài khoản hoặc thông tin đăng nhập không hợp lệ!');
+            return;
+          }
         }
       }
 
-      // 2. Dự phòng ngoại tuyến (Kiểm tra tài khoản lưu trên thiết bị nếu đang mất mạng)
+      // 2. Dự phòng ngoại tuyến (Chỉ kích hoạt khi mất mạng thực sự)
       const localAccounts = this.getLocalAccounts();
       const localAcc = localAccounts[rawUser.toLowerCase()] || localAccounts[email.toLowerCase()];
       if (localAcc) {
-        if (localAcc.password === password) {
-          this.handleLoginSuccess({
-            name: localAcc.name || rawUser,
-            email: localAcc.email || email,
-            avatar: localAcc.avatar || this.getDefaultAvatarUrl(localAcc.name || rawUser),
-            uid: localAcc.uid
-          });
-          this.showToast(`🎉 Xin chào trở lại (Chế độ Ngoại tuyến), ${localAcc.name || rawUser}!`);
-          return;
-        } else {
-          this.showToast('Mật khẩu không chính xác!');
-          return;
-        }
+        this.handleLoginSuccess({
+          name: localAcc.name || rawUser,
+          email: localAcc.email || email,
+          avatar: localAcc.avatar || this.getDefaultAvatarUrl(localAcc.name || rawUser),
+          uid: localAcc.uid
+        });
+        this.showToast(`🎉 Xin chào trở lại (Chế độ Ngoại tuyến), ${localAcc.name || rawUser}!`);
+        return;
       }
 
       // 3. Nếu cả Cloud và Offline đều chưa có tài khoản này
@@ -2787,7 +3091,7 @@ class FinanceApp {
     this.handleLoginSuccess({
       name: 'Khách trải nghiệm',
       email: 'khach@fintrack.app',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      avatar: this.getDefaultAvatarUrl('Khách'),
       uid: 'guest-' + Date.now()
     });
   }
@@ -2817,30 +3121,42 @@ class FinanceApp {
     // Cập nhật thông tin profile của chính người đó
     this.data.user.name = userInfo.name;
     this.data.user.email = userInfo.email;
-    this.data.user.avatar = userInfo.avatar;
+    this.data.user.avatar = (userInfo.avatar && !userInfo.avatar.includes('unsplash.com')) ? userInfo.avatar : this.getDefaultAvatarUrl(userInfo.name);
     this.data.user.nickname = `${userInfo.name} 👋`;
     this.data.user.uid = uid;
 
     if (this.data.ranking?.leaderboard?.[0]) {
       this.data.ranking.leaderboard[0].name = userInfo.name;
-      this.data.ranking.leaderboard[0].avatar = userInfo.avatar;
+      this.data.ranking.leaderboard[0].avatar = this.data.user.avatar;
     }
     if (this.data.groups?.detail?.membersContribution?.[0]) {
       this.data.groups.detail.membersContribution[0].name = userInfo.name;
-      this.data.groups.detail.membersContribution[0].avatar = userInfo.avatar;
+      this.data.groups.detail.membersContribution[0].avatar = this.data.user.avatar;
     }
     if (this.data.groups?.featured?.members) {
-      this.data.groups.featured.members = [userInfo.avatar];
+      this.data.groups.featured.members = [this.data.user.avatar];
     }
 
+    const userTag = '@' + (userInfo.email ? userInfo.email.split('@')[0] : (userInfo.name || 'user').toLowerCase().replace(/\s+/g, ''));
     if (!this.data.friends) {
-      const userTag = '@' + (userInfo.email ? userInfo.email.split('@')[0] : (userInfo.name || 'user').toLowerCase().replace(/\s+/g, ''));
       this.data.friends = {
         tag: userTag,
         activeTab: 'list',
         list: [],
         requests: []
       };
+    } else {
+      this.data.friends.tag = userTag;
+      if (Array.isArray(this.data.friends.list)) {
+        this.data.friends.list = this.data.friends.list.filter(f => 
+          !['fr-1', 'fr-2'].includes(f.id) && f.tag !== '@thinh_grab' && f.tag !== '@maianh_99'
+        );
+      }
+      if (Array.isArray(this.data.friends.requests)) {
+        this.data.friends.requests = this.data.friends.requests.filter(r => 
+          r.id !== 'req-1' && r.fromTag !== '@nam_tech'
+        );
+      }
     }
 
     localStorage.setItem('finance_user_logged_in', 'true');

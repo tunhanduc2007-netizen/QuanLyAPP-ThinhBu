@@ -214,10 +214,10 @@
         <!-- Header: Avatar + Xin chào + Bell -->
         <div class="user-greeting-box">
           <div class="user-profile-summary" onclick="app.navTo('screen-profile')">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="avatar-circle" id="dashUserAvatar" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=FinTrack&background=10B981&color=fff&bold=true';">
+            <img src="https://ui-avatars.com/api/?name=User&background=10B981&color=fff&bold=true" alt="Avatar" class="avatar-circle" id="dashUserAvatar" referrerpolicy="no-referrer">
             <div class="user-greeting-text">
               <div class="greet-sub">Xin chào,</div>
-              <div class="user-name" id="dashUserName">Nhân Từ Đức 👋</div>
+              <div class="user-name" id="dashUserName">Người dùng 👋</div>
               <div class="user-sub-msg">Chúc bạn một ngày tốt lành!</div>
             </div>
           </div>
@@ -526,23 +526,24 @@
 
 
       <!-- ===================================================
-           5. SCREEN: RANKING (🏆 RANKING - DARK THEME)
+           5. SCREEN: RANKING (🏆 RANKING - THEME-ADAPTIVE)
            =================================================== -->
       <section class="app-screen" id="screen-ranking">
         <div class="ranking-container-theme">
           <div class="ranking-header">
-            <h2 class="ranking-title">🏆 Ranking</h2>
+            <h2 class="ranking-title">🏆 Bảng xếp hạng</h2>
+            <span class="ranking-header-badge" id="rankSeasonBadge">Tuần này</span>
           </div>
 
           <!-- Tabs: Tổng thu nhập | Thu nhập ròng | Tăng trưởng -->
-          <div class="segmented-control" style="background: #1F2937; border-color: #374151;">
+          <div class="segmented-control">
             <div class="segmented-tab active" onclick="app.setRankingMetric('total_income', this)">Tổng thu nhập</div>
             <div class="segmented-tab" onclick="app.setRankingMetric('net_income', this)">Thu nhập ròng</div>
             <div class="segmented-tab" onclick="app.setRankingMetric('growth', this)">Tăng trưởng</div>
           </div>
 
           <!-- Filter: Hôm nay | Tuần này | Tháng này | Năm nay -->
-          <div class="segmented-control" style="background: #111827; border-color: #243042;">
+          <div class="segmented-control ranking-period-filter">
             <div class="segmented-tab" onclick="app.setRankingPeriod('today', this)">Hôm nay</div>
             <div class="segmented-tab active" onclick="app.setRankingPeriod('this_week', this)">Tuần này</div>
             <div class="segmented-tab" onclick="app.setRankingPeriod('this_month', this)">Tháng này</div>
@@ -551,18 +552,21 @@
 
           <!-- Leaderboard List -->
           <div id="rankingListContainer">
-            <!-- Render từ JS: #1 Nguyễn Văn A, #2 Trần Minh B, #3 Lê Hoàng C, #4 Nguyễn Từ Đức, #5 Phạm Thị D -->
+            <!-- Render từ JS -->
           </div>
 
           <!-- Thông báo Ranking -->
           <div class="ranking-alert-pill" id="rankAlertPill">
-            <i data-lucide="bell" style="width: 16px; height: 16px;"></i>
+            <i data-lucide="sparkles" style="width: 16px; height: 16px; flex-shrink: 0;"></i>
             <span id="rankAlertText">Bạn đang dẫn đầu bảng xếp hạng cá nhân! 🎉</span>
           </div>
 
           <!-- Toggle switch: Ẩn thông tin cá nhân -->
           <div class="ranking-privacy-switch">
-            <span>Ẩn thông tin cá nhân</span>
+            <div class="privacy-switch-text-wrap">
+              <div class="privacy-switch-title">Ẩn thông tin cá nhân</div>
+              <div class="privacy-switch-desc">Hiển thị "Bạn (Ẩn danh)" trên bảng xếp hạng</div>
+            </div>
             <label class="switch">
               <input type="checkbox" id="rankPrivacyToggle" onchange="app.toggleRankPrivacy(this.checked)">
               <span class="slider"></span>
@@ -611,7 +615,6 @@
           </div>
 
           <div class="avatar-stack-wrap" id="featuredGroupAvatars">
-            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80" class="avatar-stack-item">
           </div>
 
           <button class="btn-outline" onclick="event.stopPropagation(); app.showToast('Mời thành viên hoặc tạo nhóm mới!')">
@@ -888,9 +891,9 @@
 
         <!-- Profile Hero -->
         <div class="profile-hero-card">
-          <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80" alt="Avatar" class="profile-avatar-large" id="profileAvatarImg" referrerpolicy="no-referrer" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=FinTrack&background=10B981&color=fff&bold=true';">
-          <div class="profile-fullname" id="profileFullName">Nhân Từ Đức</div>
-          <div class="profile-username" id="profileEmailOrUser">@nhantuduc</div>
+          <img src="https://ui-avatars.com/api/?name=User&background=10B981&color=fff&bold=true" alt="Avatar" class="profile-avatar-large" id="profileAvatarImg" referrerpolicy="no-referrer">
+          <div class="profile-fullname" id="profileFullName">Người dùng</div>
+          <div class="profile-username" id="profileEmailOrUser">@user</div>
 
           <!-- 3 Stats Quick Row -->
           <div class="group-stats-row" style="margin-bottom: 0;">
@@ -1010,9 +1013,9 @@
           <div class="friend-my-id-left">
             <img src="" alt="Avatar" class="avatar-circle" id="friendMyAvatar">
             <div>
-              <div class="friend-my-name" id="friendMyName">Nhân Từ Đức</div>
+              <div class="friend-my-name" id="friendMyName">Người dùng</div>
               <div class="friend-my-tag-row">
-                <span class="friend-my-tag" id="friendMyTag">@nhantuduc</span>
+                <span class="friend-my-tag" id="friendMyTag">@user</span>
                 <button class="btn-copy-tag" onclick="app.copyMyFriendTag()" title="Sao chép ID">
                   <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
                 </button>
@@ -1029,7 +1032,7 @@
         <div class="friend-search-box">
           <div class="friend-search-input-wrap">
             <i data-lucide="search" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
-            <input type="text" id="friendSearchInput" placeholder="Nhập tên hoặc ID (ví dụ: @thinh)..." onkeydown="if(event.key === 'Enter') app.searchAndAddFriend()">
+            <input type="text" id="friendSearchInput" placeholder="Nhập tên hoặc ID (ví dụ: @user)..." onkeydown="if(event.key === 'Enter') app.searchAndAddFriend()">
           </div>
           <button class="btn-friend-search" onclick="app.searchAndAddFriend()">
             <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
@@ -1347,8 +1350,8 @@
           <img id="friendQrImg" src="" alt="QR Code" style="width: 170px; height: 170px; display: block; border-radius: 8px;">
         </div>
 
-        <div style="font-size: 16px; font-weight: 800; color: var(--primary-green); margin-bottom: 4px;" id="friendQrName">Nhân Từ Đức</div>
-        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;" id="friendQrTag">@nhantuduc</div>
+        <div style="font-size: 16px; font-weight: 800; color: var(--primary-green); margin-bottom: 4px;" id="friendQrName">Người dùng</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;" id="friendQrTag">@user</div>
 
         <button class="btn-primary" onclick="app.copyMyFriendTag()" style="margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 8px;">
           <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
