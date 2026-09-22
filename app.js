@@ -55,6 +55,8 @@ class FinanceApp {
 
     this.initAuthListener();
     this.setupIcons();
+    this.initPullToRefresh();
+    this.initCurrencyMasks();
   }
 
   // Khởi tạo hoặc load từ LocalStorage theo từng User riêng biệt (Multi-User Isolation)
@@ -81,6 +83,13 @@ class FinanceApp {
     } else {
       this.data = JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA));
       this.saveData();
+    }
+
+    // Đảm bảo dữ liệu danh bạ bạn bè luôn sẵn sàng
+    if (!this.data.friends) {
+      this.data.friends = (typeof DEFAULT_FINANCE_DATA !== 'undefined' && DEFAULT_FINANCE_DATA.friends)
+        ? JSON.parse(JSON.stringify(DEFAULT_FINANCE_DATA.friends))
+        : { tag: '@nhantuduc', activeTab: 'list', list: [], requests: [] };
     }
 
     // Phục hồi hồ sơ đăng nhập đã lưu
@@ -320,33 +329,247 @@ class FinanceApp {
     }, 2400);
   }
 
+  // 🪙 WEB AUDIO API COIN SOUND (0 KB, âm thanh leng keng của đồng xu khi nhận tiền)
+  playCoinSound() {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!this.audioCtx) {
+        this.audioCtx = new AudioContext();
+      }
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume();
+      }
+      const now = this.audioCtx.currentTime;
+
+      // Tiếng chuông 1 (1760Hz - A6)
+      const osc1 = this.audioCtx.createOscillator();
+      const gain1 = this.audioCtx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(1760, now);
+      osc1.frequency.exponentialRampToValueAtTime(2200, now + 0.1);
+      gain1.gain.setValueAtTime(0.2, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc1.connect(gain1);
+      gain1.connect(this.audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.3);
+
+      // Tiếng chuông 2 (2637Hz - E7) ngân vang
+      const osc2 = this.audioCtx.createOscillator();
+      const gain2 = this.audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(2637, now + 0.08);
+      gain2.gain.setValueAtTime(0.25, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+      osc2.connect(gain2);
+      gain2.connect(this.audioCtx.destination);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.42);
+    } catch (e) {}
+  }
+
+  // 🎉 CANVAS CONFETTI (Bắn pháo hoa ăn mừng khi hoàn thành mục tiêu tài chính)
+  triggerConfetti() {
+    try {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 75,
+          spread: 60,
+          origin: { y: 0.65 }
+        });
+        setTimeout(() => {
+          confetti({
+            particleCount: 45,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 }
+          });
+          confetti({
+            particleCount: 45,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 }
+          });
+        }, 180);
+      }
+    } catch (e) {}
+  }
+
+  // 💵 REAL-TIME CURRENCY MASK (Tự động format dấu chấm phân cách khi gõ tiền)
+  initCurrencyMasks() {
+    const inputIds = ['addAmountInput', 'transferAmountInput', 'newGoalTargetInput', 'newGoalCurrentInput'];
+    inputIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', (e) => {
+        const raw = e.target.value.replace(/[^0-9]/g, '');
+        if (!raw) {
+          e.target.value = '';
+          return;
+        }
+        const val = parseInt(raw, 10);
+        if (!isNaN(val)) {
+          e.target.value = val.toLocaleString('vi-VN') + ' đ';
+        }
+      });
+    });
+  }
+
+  // 📳 HAPTIC TOUCH FEEDBACK (Xung rung nhẹ mô phỏng nút bấm iOS/Android)
+  triggerHaptic(type = 'light') {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        if (type === 'medium') {
+          navigator.vibrate(22);
+        } else if (type === 'heavy') {
+          navigator.vibrate([30, 40, 30]);
+        } else {
+          navigator.vibrate(10);
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 🌟 NUMBER COUNT-UP ANIMATION (Lăn số mượt 60fps khi biến động số dư)
+  animateNumber(el, targetVal, duration = 650) {
+    if (!el || isNaN(targetVal)) return;
+    if (!el.dataset) el.dataset = {};
+    const startVal = Number(el.dataset.rawVal) || 0;
+    el.dataset.rawVal = targetVal;
+    if (startVal === targetVal) {
+      el.textContent = this.formatVND(targetVal);
+      return;
+    }
+    const startTime = performance.now();
+    const step = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // easeOutCubic: 1 - (1 - t)^3
+      const ease = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(startVal + (targetVal - startVal) * ease);
+      el.textContent = this.formatVND(current);
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        el.textContent = this.formatVND(targetVal);
+      }
+    };
+    requestAnimationFrame(step);
+  }
+
+  // 🔄 PULL-TO-REFRESH (Vuốt đỉnh màn hình để đồng bộ Cloud Realtime)
+  initPullToRefresh() {
+    const indicator = document.getElementById('pullRefreshIndicator');
+    const indicatorText = document.getElementById('pullRefreshText');
+    const screenContainer = document.querySelector('.screen-container');
+    if (!indicator || !screenContainer) return;
+
+    let startY = 0;
+    let pullDistance = 0;
+    let isPulling = false;
+    let activeScreen = null;
+
+    screenContainer.addEventListener('touchstart', (e) => {
+      activeScreen = document.querySelector('.app-screen.active');
+      if (!activeScreen || activeScreen.id === 'screen-login') return;
+      if (activeScreen.scrollTop <= 0) {
+        startY = e.touches[0].clientY;
+        isPulling = true;
+      }
+    }, { passive: true });
+
+    screenContainer.addEventListener('touchmove', (e) => {
+      if (!isPulling || !activeScreen) return;
+      const currentY = e.touches[0].clientY;
+      const diff = currentY - startY;
+      if (diff > 0 && activeScreen.scrollTop <= 0) {
+        pullDistance = Math.min(diff * 0.45, 80);
+        indicator.classList.add('visible');
+        indicator.style.transform = `translateX(-50%) translateY(${pullDistance - 50}px)`;
+        if (indicatorText) {
+          indicatorText.textContent = pullDistance > 45 ? 'Thả để đồng bộ Cloud' : 'Kéo để làm mới';
+        }
+      } else {
+        indicator.classList.remove('visible');
+        indicator.style.transform = '';
+      }
+    }, { passive: true });
+
+    const finishPull = async () => {
+      if (!isPulling) return;
+      isPulling = false;
+      if (pullDistance > 45) {
+        this.triggerHaptic('medium');
+        indicator.classList.add('refreshing');
+        if (indicatorText) indicatorText.textContent = 'Đang đồng bộ...';
+        indicator.style.transform = 'translateX(-50%) translateY(14px)';
+
+        try {
+          if (window.grabSync && typeof window.grabSync.initCloudSync === 'function') {
+            window.grabSync.initCloudSync();
+          }
+          this.recalculateBalances();
+          this.renderAll();
+          this.showToast('☁️ Đã đồng bộ dữ liệu mới nhất từ Cloud!');
+        } catch (err) {
+          console.warn('Pull-to-refresh sync error:', err);
+        }
+
+        setTimeout(() => {
+          indicator.classList.remove('refreshing', 'visible');
+          indicator.style.transform = '';
+          pullDistance = 0;
+        }, 600);
+      } else {
+        indicator.classList.remove('visible');
+        indicator.style.transform = '';
+        pullDistance = 0;
+      }
+    };
+
+    screenContainer.addEventListener('touchend', finishPull, { passive: true });
+    screenContainer.addEventListener('touchcancel', finishPull, { passive: true });
+  }
+
   // ===================================================
-  // NAVIGATION & ROUTING
+  // NAVIGATION & ROUTING (VIEW TRANSITIONS API)
   // ===================================================
   navTo(screenId, saveHistory = true) {
     if (this.currentScreen === screenId) return;
+    this.triggerHaptic('light');
 
-    if (saveHistory && this.currentScreen) {
-      this.historyStack.push(this.currentScreen);
+    const switchScreenDOM = () => {
+      if (saveHistory && this.currentScreen) {
+        this.historyStack.push(this.currentScreen);
+      }
+
+      const prevEl = document.getElementById(this.currentScreen);
+      if (prevEl) prevEl.classList.remove('active');
+
+      const nextEl = document.getElementById(screenId);
+      if (nextEl) {
+        nextEl.classList.add('active');
+        this.currentScreen = screenId;
+        nextEl.scrollTop = 0;
+      }
+
+      // Ẩn thanh Bottom Nav khi đang ở màn hình Đăng nhập
+      const bottomBar = document.querySelector('.bottom-nav-bar');
+      if (bottomBar) {
+        bottomBar.style.display = (screenId === 'screen-login') ? 'none' : 'flex';
+      }
+
+      // Cập nhật trạng thái Bottom Nav
+      this.updateBottomNavState(screenId);
+    };
+
+    // Tận dụng View Transitions API nếu trình duyệt hỗ trợ
+    if (typeof document !== 'undefined' && document.startViewTransition) {
+      document.startViewTransition(() => switchScreenDOM());
+    } else {
+      switchScreenDOM();
     }
-
-    const prevEl = document.getElementById(this.currentScreen);
-    if (prevEl) prevEl.classList.remove('active');
-
-    const nextEl = document.getElementById(screenId);
-    if (nextEl) {
-      nextEl.classList.add('active');
-      this.currentScreen = screenId;
-    }
-
-    // Ẩn thanh Bottom Nav khi đang ở màn hình Đăng nhập
-    const bottomBar = document.querySelector('.bottom-nav-bar');
-    if (bottomBar) {
-      bottomBar.style.display = (screenId === 'screen-login') ? 'none' : 'flex';
-    }
-
-    // Cập nhật trạng thái Bottom Nav
-    this.updateBottomNavState(screenId);
 
     // Re-render chart nếu màn hình có canvas
     if (screenId === 'screen-dashboard') {
@@ -361,6 +584,7 @@ class FinanceApp {
   }
 
   goBack() {
+    this.triggerHaptic('light');
     if (this.currentScreen === 'screen-login') return;
     if (this.historyStack.length > 0) {
       const prev = this.historyStack.pop();
@@ -392,11 +616,13 @@ class FinanceApp {
 
   // Quick Action Sheet
   openQuickActionSheet() {
+    this.triggerHaptic('light');
     const sheet = document.getElementById('quickActionSheet');
     if (sheet) sheet.classList.add('show');
   }
 
   closeQuickActionSheet() {
+    this.triggerHaptic('light');
     const sheet = document.getElementById('quickActionSheet');
     if (sheet) sheet.classList.remove('show');
   }
@@ -405,6 +631,7 @@ class FinanceApp {
   // 1. DASHBOARD
   // ===================================================
   toggleBalanceVisibility() {
+    this.triggerHaptic('light');
     this.isBalanceHidden = !this.isBalanceHidden;
     const balanceEl = document.getElementById('dashMainBalance');
     const eyeIcon = document.getElementById('eyeBalanceIcon');
@@ -420,7 +647,9 @@ class FinanceApp {
   renderDashboard() {
     const ov = this.data.overview;
     const dashBal = document.getElementById('dashMainBalance');
-    if (dashBal && !this.isBalanceHidden) dashBal.textContent = this.formatVND(ov.currentBalance);
+    if (dashBal && !this.isBalanceHidden) {
+      this.animateNumber(dashBal, ov.currentBalance);
+    }
 
     // Cập nhật lời chào và Avatar người dùng trên Dashboard
     const avEl = document.getElementById('dashUserAvatar');
@@ -436,13 +665,13 @@ class FinanceApp {
     if (nameEl) nameEl.textContent = this.data.user.nickname || `${this.data.user.name} 👋`;
 
     const inc = document.getElementById('dashMonthlyIncome');
-    if (inc) inc.textContent = this.formatVND(ov.monthlyIncome);
+    if (inc) this.animateNumber(inc, ov.monthlyIncome);
 
     const exp = document.getElementById('dashMonthlyExpense');
-    if (exp) exp.textContent = this.formatVND(ov.monthlyExpense);
+    if (exp) this.animateNumber(exp, ov.monthlyExpense);
 
     const sav = document.getElementById('dashMonthlySavings');
-    if (sav) sav.textContent = this.formatVND(ov.monthlySavings);
+    if (sav) this.animateNumber(sav, ov.monthlySavings);
 
     // Chi tiêu hôm nay
     const listEl = document.getElementById('dashTodayExpensesList');
@@ -1005,6 +1234,8 @@ class FinanceApp {
         }
       }
 
+      this.playCoinSound();
+      this.triggerHaptic('medium');
       this.renderAll();
       this.showToast(`Đã thêm giao dịch ${this.formatVND(amount)}!`);
 
@@ -1330,8 +1561,15 @@ class FinanceApp {
 
     this.recalculateBalances();
     this.saveData();
+    this.playCoinSound();
+    this.triggerHaptic('medium');
+    if (goal.percent >= 100) {
+      this.triggerConfetti();
+      this.showToast(`🎉 CHÚC MỪNG! Đã hoàn thành mục tiêu ${goal.title}!`);
+    } else {
+      this.showToast(`Đã trích ${this.formatVND(addAmt)} từ ${sourceAcc.name} vào mục tiêu ${goal.title}!`);
+    }
     this.renderAll();
-    this.showToast(`Đã trích ${this.formatVND(addAmt)} từ ${sourceAcc.name} vào mục tiêu ${goal.title}!`);
   }
 
   openNewGoalModal() {
@@ -1371,9 +1609,12 @@ class FinanceApp {
     });
 
     this.saveData();
+    this.playCoinSound();
+    this.triggerConfetti();
+    this.triggerHaptic('medium');
     this.renderGoals();
     this.closeNewGoalModal();
-    this.showToast(`Đã tạo mục tiêu "${title}"!`);
+    this.showToast(`🎉 Đã tạo mục tiêu "${title}"!`);
 
     if (titleInput) titleInput.value = '';
     if (targetInput) targetInput.value = '';
@@ -1588,7 +1829,7 @@ class FinanceApp {
     const gridEl = document.getElementById('walletsGrid2x2');
     if (gridEl) {
       gridEl.innerHTML = this.data.wallets.accounts.map(acc => `
-        <div class="account-card-box">
+        <div class="account-card-box draggable-handle">
           <div class="account-card-top">
             <div class="category-icon-circle" style="background: ${acc.bg}; color: ${acc.color}; width: 30px; height: 30px;">
               <i data-lucide="${acc.icon}" style="width: 15px; height: 15px;"></i>
@@ -1598,6 +1839,27 @@ class FinanceApp {
           <div class="account-balance-val">${this.formatVND(acc.balance)}</div>
         </div>
       `).join('');
+
+      if (typeof Sortable !== 'undefined') {
+        if (this.sortableWallets) {
+          try { this.sortableWallets.destroy(); } catch (e) {}
+        }
+        this.sortableWallets = new Sortable(gridEl, {
+          animation: 200,
+          ghostClass: 'sortable-ghost',
+          chosenClass: 'sortable-chosen',
+          dragClass: 'sortable-drag',
+          onEnd: (evt) => {
+            this.triggerHaptic('light');
+            if (evt.oldIndex !== evt.newIndex) {
+              const moved = this.data.wallets.accounts.splice(evt.oldIndex, 1)[0];
+              this.data.wallets.accounts.splice(evt.newIndex, 0, moved);
+              this.saveData();
+              this.showToast(`Đã sắp xếp lại ví: ${moved.name}`);
+            }
+          }
+        });
+      }
     }
 
     const recListEl = document.getElementById('walletsRecentTxList');
@@ -1739,6 +2001,7 @@ class FinanceApp {
         window.grabSync.executeAtomicTransfer(from, to, amt, transferTx);
       }
 
+      this.triggerHaptic('medium');
       this.renderWallets();
       this.renderTransactionsList();
       this.closeTransferModal();
@@ -1846,6 +2109,343 @@ class FinanceApp {
         avEl.src = this.getDefaultAvatarUrl();
       };
     }
+
+    // Cập nhật số lượng bạn bè hiển thị trên Profile
+    const profileFriendsBadge = document.getElementById('profileFriendsBadge');
+    if (profileFriendsBadge) {
+      profileFriendsBadge.textContent = (this.data.friends?.list?.length) || 0;
+    }
+  }
+
+  // ===================================================
+  // 15. FRIENDS SYSTEM (BẠN BÈ & KẾT BẠN)
+  // ===================================================
+  getMyFriendTag() {
+    if (this.data?.friends?.tag) return this.data.friends.tag;
+    const base = (this.data?.user?.email ? this.data.user.email.split('@')[0] : (this.data?.user?.username || this.data?.user?.name || 'user'))
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '');
+    return '@' + (base || 'user');
+  }
+
+  renderFriends() {
+    if (!this.data.friends) {
+      this.data.friends = {
+        tag: this.getMyFriendTag(),
+        activeTab: 'list',
+        list: [],
+        requests: []
+      };
+    }
+    if (!Array.isArray(this.data.friends.list)) this.data.friends.list = [];
+    if (!Array.isArray(this.data.friends.requests)) this.data.friends.requests = [];
+
+    const myTag = this.getMyFriendTag();
+    const myName = this.data.user?.name || 'Người dùng';
+    const myAvatar = this.getAvatarUrl();
+
+    // 1. Thẻ ID cá nhân
+    const myNameEl = document.getElementById('friendMyName');
+    if (myNameEl) myNameEl.textContent = myName;
+
+    const myTagEl = document.getElementById('friendMyTag');
+    if (myTagEl) myTagEl.textContent = myTag;
+
+    const myAvEl = document.getElementById('friendMyAvatar');
+    if (myAvEl) {
+      myAvEl.referrerPolicy = "no-referrer";
+      myAvEl.src = myAvatar;
+      myAvEl.onerror = () => {
+        myAvEl.onerror = null;
+        myAvEl.src = this.getDefaultAvatarUrl(myName);
+      };
+    }
+
+    // 2. Cập nhật các badge số lượng
+    const countBadge = document.getElementById('friendsCountBadge');
+    if (countBadge) countBadge.textContent = this.data.friends.list.length;
+
+    const reqsBadge = document.getElementById('friendsReqsBadge');
+    if (reqsBadge) reqsBadge.textContent = this.data.friends.requests.length;
+
+    const profileBadge = document.getElementById('profileFriendsBadge');
+    if (profileBadge) profileBadge.textContent = this.data.friends.list.length;
+
+    // 3. Render Danh sách bạn bè
+    const listContainer = document.getElementById('friendsListContainer');
+    if (listContainer) {
+      if (this.data.friends.list.length === 0) {
+        listContainer.innerHTML = `
+          <div class="empty-state-box" style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: var(--bg-card-subtle); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--text-muted);">
+              <i data-lucide="users" style="width: 26px; height: 26px;"></i>
+            </div>
+            <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">Chưa có bạn bè trong danh bạ</div>
+            <div style="font-size: 12px; max-width: 260px; margin: 0 auto;">Hãy nhập tên hoặc ID bên trên, hoặc chia sẻ mã QR để kết nối bạn bè!</div>
+          </div>
+        `;
+      } else {
+        listContainer.innerHTML = this.data.friends.list.map(f => {
+          const defaultAv = this.getDefaultAvatarUrl(f.name);
+          const avSrc = f.avatar || defaultAv;
+          return `
+            <div class="friend-item-card">
+              <div class="friend-item-left">
+                <img src="${this.escapeHtml(avSrc)}" alt="${this.escapeHtml(f.name)}" class="avatar-circle" style="width: 44px; height: 44px; object-fit: cover;" onerror="this.src='${defaultAv}'">
+                <div>
+                  <div class="friend-item-name">${this.escapeHtml(f.name)}</div>
+                  <div class="friend-item-sub">
+                    <span class="friend-item-tag">${this.escapeHtml(f.tag || '')}</span>
+                    ${f.role ? `<span>• ${this.escapeHtml(f.role)}</span>` : ''}
+                  </div>
+                </div>
+              </div>
+              <div class="friend-item-actions">
+                <button class="btn-friend-action primary" onclick="app.inviteFriendToGroup('${this.escapeHtml(f.id)}')" title="Mời vào nhóm">
+                  <i data-lucide="user-plus" style="width: 14px; height: 14px;"></i>
+                  <span>Mời</span>
+                </button>
+                <button class="btn-friend-action danger" onclick="app.removeFriend('${this.escapeHtml(f.id)}')" title="Hủy kết bạn">
+                  <i data-lucide="user-x" style="width: 14px; height: 14px;"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 4. Render Danh sách lời mời
+    const reqsContainer = document.getElementById('friendsRequestsContainer');
+    if (reqsContainer) {
+      if (this.data.friends.requests.length === 0) {
+        reqsContainer.innerHTML = `
+          <div class="empty-state-box" style="text-align: center; padding: 36px 16px; color: var(--text-muted);">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: var(--bg-card-subtle); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: var(--text-muted);">
+              <i data-lucide="mail-check" style="width: 26px; height: 26px;"></i>
+            </div>
+            <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">Không có lời mời kết bạn mới</div>
+            <div style="font-size: 12px; max-width: 240px; margin: 0 auto;">Khi ai đó gửi kết bạn theo ID của bạn, lời mời sẽ hiển thị ở đây.</div>
+          </div>
+        `;
+      } else {
+        reqsContainer.innerHTML = this.data.friends.requests.map(r => {
+          const defaultAv = this.getDefaultAvatarUrl(r.fromName);
+          const avSrc = r.avatar || defaultAv;
+          return `
+            <div class="friend-item-card">
+              <div class="friend-item-left">
+                <img src="${this.escapeHtml(avSrc)}" alt="${this.escapeHtml(r.fromName)}" class="avatar-circle" style="width: 44px; height: 44px; object-fit: cover;" onerror="this.src='${defaultAv}'">
+                <div>
+                  <div class="friend-item-name">${this.escapeHtml(r.fromName)}</div>
+                  <div class="friend-item-sub">
+                    <span class="friend-item-tag">${this.escapeHtml(r.fromTag || '')}</span>
+                    <span>• ${this.escapeHtml(r.time || 'Mới đây')}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="friend-item-actions">
+                <button class="btn-friend-action primary" onclick="app.acceptFriendRequest('${this.escapeHtml(r.id)}')">
+                  <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                  <span>Đồng ý</span>
+                </button>
+                <button class="btn-friend-action danger" onclick="app.declineFriendRequest('${this.escapeHtml(r.id)}')">
+                  <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                  <span>Bỏ qua</span>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 5. Cập nhật trạng thái Tab hiển thị
+    const activeTab = this.data.friends.activeTab || 'list';
+    const tabListEl = document.getElementById('tabFriendsList');
+    const tabReqsEl = document.getElementById('tabFriendsRequests');
+
+    if (activeTab === 'list') {
+      if (tabListEl) tabListEl.classList.add('active');
+      if (tabReqsEl) tabReqsEl.classList.remove('active');
+      if (listContainer) listContainer.style.display = 'block';
+      if (reqsContainer) reqsContainer.style.display = 'none';
+    } else {
+      if (tabListEl) tabListEl.classList.remove('active');
+      if (tabReqsEl) tabReqsEl.classList.add('active');
+      if (listContainer) listContainer.style.display = 'none';
+      if (reqsContainer) reqsContainer.style.display = 'block';
+    }
+
+    this.setupIcons();
+  }
+
+  switchFriendsTab(tab) {
+    if (!this.data.friends) this.data.friends = {};
+    this.data.friends.activeTab = tab;
+    this.triggerHaptic('light');
+    this.renderFriends();
+    this.saveData();
+  }
+
+  searchAndAddFriend() {
+    const input = document.getElementById('friendSearchInput');
+    if (!input) return;
+    const query = input.value.trim();
+    if (!query) {
+      this.showToast('⚠️ Vui lòng nhập tên hoặc ID cần kết bạn!');
+      input.focus();
+      return;
+    }
+
+    const myTag = this.getMyFriendTag().toLowerCase();
+    const cleanQuery = query.toLowerCase();
+
+    if (cleanQuery === myTag || cleanQuery === myTag.replace('@', '')) {
+      this.showToast('⚠️ Bạn không thể kết bạn với chính mình!');
+      return;
+    }
+
+    if (!this.data.friends) this.data.friends = { list: [], requests: [] };
+    if (!Array.isArray(this.data.friends.list)) this.data.friends.list = [];
+
+    // Kiểm tra đã là bạn bè chưa
+    const alreadyFriend = this.data.friends.list.some(f => 
+      f.tag?.toLowerCase() === cleanQuery || 
+      f.tag?.toLowerCase() === ('@' + cleanQuery) ||
+      f.name?.toLowerCase() === cleanQuery
+    );
+
+    if (alreadyFriend) {
+      this.showToast('ℹ️ Người này đã có trong danh sách bạn bè!');
+      input.value = '';
+      return;
+    }
+
+    // Tạo bạn bè mới
+    const tag = query.startsWith('@') ? query : ('@' + query.toLowerCase().replace(/\s+/g, ''));
+    let displayName = query.startsWith('@') ? query.slice(1) : query;
+    displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+    const newFriend = {
+      id: 'fr_' + Date.now(),
+      name: displayName,
+      tag: tag,
+      avatar: this.getDefaultAvatarUrl(displayName),
+      role: 'Bạn mới kết nối',
+      status: 'accepted',
+      addedAt: this.getLocalDateString()
+    };
+
+    this.data.friends.list.unshift(newFriend);
+    this.data.friends.activeTab = 'list';
+    this.saveData();
+    this.renderFriends();
+
+    // Hiệu ứng ăn mừng: âm thanh + pháo hoa + rung
+    this.playCoinSound();
+    this.triggerConfetti();
+    this.triggerHaptic('medium');
+
+    this.showToast(`🎉 Đã kết bạn thành công với ${displayName} (${tag})!`);
+    input.value = '';
+  }
+
+  acceptFriendRequest(reqId) {
+    if (!this.data.friends || !this.data.friends.requests) return;
+    const idx = this.data.friends.requests.findIndex(r => r.id === reqId);
+    if (idx === -1) return;
+
+    const req = this.data.friends.requests[idx];
+    this.data.friends.requests.splice(idx, 1);
+
+    if (!Array.isArray(this.data.friends.list)) this.data.friends.list = [];
+    this.data.friends.list.unshift({
+      id: 'fr_' + Date.now(),
+      name: req.fromName,
+      tag: req.fromTag,
+      avatar: req.avatar || this.getDefaultAvatarUrl(req.fromName),
+      role: req.role || 'Bạn mới kết nối',
+      status: 'accepted',
+      addedAt: this.getLocalDateString()
+    });
+
+    this.saveData();
+    this.renderFriends();
+
+    this.playCoinSound();
+    this.triggerConfetti();
+    this.triggerHaptic('medium');
+    this.showToast(`✨ Đã đồng ý kết bạn với ${req.fromName}!`);
+  }
+
+  declineFriendRequest(reqId) {
+    if (!this.data.friends || !this.data.friends.requests) return;
+    this.data.friends.requests = this.data.friends.requests.filter(r => r.id !== reqId);
+    this.saveData();
+    this.renderFriends();
+    this.triggerHaptic('light');
+    this.showToast('Đã bỏ qua lời mời kết bạn.');
+  }
+
+  removeFriend(friendId) {
+    if (!this.data.friends || !this.data.friends.list) return;
+    const friend = this.data.friends.list.find(f => f.id === friendId);
+    const friendName = friend ? friend.name : 'người này';
+
+    if (confirm(`Bạn có chắc muốn hủy kết bạn với ${friendName}?`)) {
+      this.data.friends.list = this.data.friends.list.filter(f => f.id !== friendId);
+      this.saveData();
+      this.renderFriends();
+      this.triggerHaptic('light');
+      this.showToast(`Đã xóa ${friendName} khỏi danh bạ.`);
+    }
+  }
+
+  inviteFriendToGroup(friendId) {
+    if (!this.data.friends || !this.data.friends.list) return;
+    const friend = this.data.friends.list.find(f => f.id === friendId);
+    if (friend) {
+      this.triggerHaptic('light');
+      this.showToast(`📩 Đã gửi lời mời tham gia nhóm tới ${friend.name}!`);
+    }
+  }
+
+  copyMyFriendTag() {
+    const tag = this.getMyFriendTag();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(tag).then(() => {
+        this.triggerHaptic('light');
+        this.showToast(`📋 Đã sao chép ID: ${tag}`);
+      }).catch(() => {
+        this.showToast(`ID của bạn: ${tag}`);
+      });
+    } else {
+      this.showToast(`ID của bạn: ${tag}`);
+    }
+  }
+
+  openFriendQrModal() {
+    const tag = this.getMyFriendTag();
+    const name = this.data?.user?.name || 'Người dùng';
+    const qrImg = document.getElementById('friendQrImg');
+    const qrName = document.getElementById('friendQrName');
+    const qrTag = document.getElementById('friendQrTag');
+
+    if (qrImg) {
+      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=fintrack:friend:${encodeURIComponent(tag)}`;
+    }
+    if (qrName) qrName.textContent = name;
+    if (qrTag) qrTag.textContent = tag;
+
+    const modal = document.getElementById('friendQrModal');
+    if (modal) modal.classList.add('active');
+    this.triggerHaptic('light');
+  }
+
+  closeFriendQrModal() {
+    const modal = document.getElementById('friendQrModal');
+    if (modal) modal.classList.remove('active');
   }
 
   // ===================================================
@@ -2036,31 +2636,22 @@ class FinanceApp {
     }
 
     try {
-      // 1. Kiểm tra tài khoản trong bộ nhớ máy (Local Accounts)
-      const localAccounts = this.getLocalAccounts();
-      const localAcc = localAccounts[rawUser.toLowerCase()] || localAccounts[email.toLowerCase()];
-      if (localAcc) {
-        if (localAcc.password === password) {
-          this.handleLoginSuccess({
-            name: localAcc.name || rawUser,
-            email: localAcc.email || email,
-            avatar: localAcc.avatar || this.getDefaultAvatarUrl(localAcc.name || rawUser),
-            uid: localAcc.uid
-          });
-          this.showToast(`🎉 Xin chào trở lại, ${localAcc.name || rawUser}!`);
-          return;
-        } else {
-          this.showToast('Mật khẩu không chính xác!');
-          return;
-        }
-      }
-
-      // 2. Thử đăng nhập qua Firebase Auth
+      // 1. Thử đăng nhập qua Firebase Auth Cloud trước (đảm bảo phiên Token và Firestore Realtime)
       if (typeof firebase !== 'undefined' && firebase.auth) {
         try {
           const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
           const user = userCredential.user;
           if (user) {
+            // Cập nhật lại cache local với UID chuẩn của Firebase
+            this.saveLocalAccount(rawUser, {
+              name: user.displayName || rawUser,
+              username: rawUser,
+              email: user.email || email,
+              password: password,
+              uid: user.uid,
+              avatar: user.photoURL || this.getDefaultAvatarUrl(user.displayName || rawUser)
+            });
+
             this.handleLoginSuccess({
               name: user.displayName || rawUser,
               email: user.email || email,
@@ -2071,22 +2662,36 @@ class FinanceApp {
             return;
           }
         } catch (fbErr) {
-          console.warn('Firebase Auth email login error:', fbErr.code, fbErr.message);
+          console.warn('Firebase Auth email login check:', fbErr.code, fbErr.message);
           if (fbErr.code === 'auth/wrong-password') {
             this.showToast('Mật khẩu không chính xác!');
             return;
-          } else if (fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/invalid-credential') {
-            this.showToast('Chưa tìm thấy tài khoản này! Hãy bấm "Tạo tài khoản" để đăng ký mới nhé.');
-            this.switchAuthTab('register');
-            const regUserEl = document.getElementById('regUsername');
-            if (regUserEl) regUserEl.value = rawUser;
-            return;
           }
+          // Nếu user-not-found hoặc lỗi mạng, tiếp tục kiểm tra tài khoản offline dự phòng bên dưới
         }
       }
 
-      // Nếu không khớp tài khoản nào
-      this.showToast('Tài khoản chưa tồn tại trên máy! Bạn hãy bấm sang tab "Tạo tài khoản" để đăng ký nhé.');
+      // 2. Dự phòng ngoại tuyến (Kiểm tra tài khoản lưu trên thiết bị nếu đang mất mạng)
+      const localAccounts = this.getLocalAccounts();
+      const localAcc = localAccounts[rawUser.toLowerCase()] || localAccounts[email.toLowerCase()];
+      if (localAcc) {
+        if (localAcc.password === password) {
+          this.handleLoginSuccess({
+            name: localAcc.name || rawUser,
+            email: localAcc.email || email,
+            avatar: localAcc.avatar || this.getDefaultAvatarUrl(localAcc.name || rawUser),
+            uid: localAcc.uid
+          });
+          this.showToast(`🎉 Xin chào trở lại (Chế độ Ngoại tuyến), ${localAcc.name || rawUser}!`);
+          return;
+        } else {
+          this.showToast('Mật khẩu không chính xác!');
+          return;
+        }
+      }
+
+      // 3. Nếu cả Cloud và Offline đều chưa có tài khoản này
+      this.showToast('Chưa tìm thấy tài khoản này! Hãy bấm "Tạo tài khoản" để đăng ký mới nhé.');
       this.switchAuthTab('register');
       const regUserEl = document.getElementById('regUsername');
       if (regUserEl) regUserEl.value = rawUser;
@@ -2211,6 +2816,16 @@ class FinanceApp {
       this.data.groups.featured.members = [userInfo.avatar];
     }
 
+    if (!this.data.friends) {
+      const userTag = '@' + (userInfo.email ? userInfo.email.split('@')[0] : (userInfo.name || 'user').toLowerCase().replace(/\s+/g, ''));
+      this.data.friends = {
+        tag: userTag,
+        activeTab: 'list',
+        list: [],
+        requests: []
+      };
+    }
+
     localStorage.setItem('finance_user_logged_in', 'true');
     localStorage.setItem('finance_user_profile', JSON.stringify(userInfo));
 
@@ -2269,6 +2884,7 @@ class FinanceApp {
     this.renderWallets();
     this.renderNotifications();
     this.renderProfile();
+    this.renderFriends();
     this.setupIcons();
   }
 }

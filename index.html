@@ -75,6 +75,12 @@
     <!-- MAIN SCREENS CONTAINER -->
     <main class="screen-container">
 
+      <!-- PULL TO REFRESH INDICATOR -->
+      <div class="pull-refresh-indicator" id="pullRefreshIndicator">
+        <i data-lucide="refresh-cw" id="pullRefreshIcon" style="width: 15px; height: 15px;"></i>
+        <span id="pullRefreshText">Kéo để đồng bộ</span>
+      </div>
+
       <!-- ===================================================
            0. SCREEN: ĐĂNG NHẬP (GOOGLE SIGN-IN)
            =================================================== -->
@@ -913,6 +919,17 @@
             <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
           </div>
 
+          <div class="menu-list-item" onclick="app.navTo('screen-friends')">
+            <div class="menu-item-left">
+              <i data-lucide="user-plus" style="color: #6366F1; width: 20px; height: 20px;"></i>
+              <span>Bạn bè & Kết bạn</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="badge-tag-friends" id="profileFriendsBadge">2</span>
+              <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
+            </div>
+          </div>
+
           <div class="menu-list-item" onclick="app.navTo('screen-wallets')">
             <div class="menu-item-left">
               <i data-lucide="credit-card" style="color: #10B981; width: 20px; height: 20px;"></i>
@@ -968,6 +985,76 @@
             </div>
             <i data-lucide="chevron-right" style="color: var(--text-muted); width: 16px; height: 16px;"></i>
           </div>
+        </div>
+      </section>
+
+      <!-- ===================================================
+           17. SCREEN: BẠN BÈ & KẾT BẠN (FRIENDS SYSTEM)
+           =================================================== -->
+      <section class="app-screen" id="screen-friends">
+        <!-- Header -->
+        <div class="screen-header-bar">
+          <div class="screen-header-left">
+            <button class="btn-header-back" onclick="app.goBack()">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <h2 class="screen-header-title">Bạn bè & Kết bạn</h2>
+          </div>
+          <button class="btn-header-icon" onclick="app.openFriendQrModal()" title="Mã QR của tôi">
+            <i data-lucide="qr-code" style="width: 20px; height: 20px;"></i>
+          </button>
+        </div>
+
+        <!-- Thẻ ID cá nhân (My Friend ID Card) -->
+        <div class="friend-my-id-card">
+          <div class="friend-my-id-left">
+            <img src="" alt="Avatar" class="avatar-circle" id="friendMyAvatar">
+            <div>
+              <div class="friend-my-name" id="friendMyName">Nhân Từ Đức</div>
+              <div class="friend-my-tag-row">
+                <span class="friend-my-tag" id="friendMyTag">@nhantuduc</span>
+                <button class="btn-copy-tag" onclick="app.copyMyFriendTag()" title="Sao chép ID">
+                  <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <button class="btn-qr-show" onclick="app.openFriendQrModal()">
+            <i data-lucide="qr-code" style="width: 15px; height: 15px;"></i>
+            <span>Mã QR</span>
+          </button>
+        </div>
+
+        <!-- Khung tìm kiếm & Kết bạn -->
+        <div class="friend-search-box">
+          <div class="friend-search-input-wrap">
+            <i data-lucide="search" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
+            <input type="text" id="friendSearchInput" placeholder="Nhập tên hoặc ID (ví dụ: @thinh)..." onkeydown="if(event.key === 'Enter') app.searchAndAddFriend()">
+          </div>
+          <button class="btn-friend-search" onclick="app.searchAndAddFriend()">
+            <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
+            <span>Kết bạn</span>
+          </button>
+        </div>
+
+        <!-- Segmented Tabs: Bạn bè | Lời mời -->
+        <div class="segmented-control" style="margin-bottom: 14px;">
+          <div class="segmented-tab active" id="tabFriendsList" onclick="app.switchFriendsTab('list')">
+            Bạn bè (<span id="friendsCountBadge">0</span>)
+          </div>
+          <div class="segmented-tab" id="tabFriendsRequests" onclick="app.switchFriendsTab('requests')">
+            Lời mời (<span id="friendsReqsBadge">0</span>)
+          </div>
+        </div>
+
+        <!-- Container 1: Danh sách bạn bè -->
+        <div id="friendsListContainer">
+          <!-- Render danh sách bạn bè -->
+        </div>
+
+        <!-- Container 2: Lời mời kết bạn -->
+        <div id="friendsRequestsContainer" style="display: none;">
+          <!-- Render lời mời -->
         </div>
       </section>
 
@@ -1247,6 +1334,30 @@
     </div>
 
 
+    <!-- ===================================================
+         FRIEND QR CODE MODAL
+         =================================================== -->
+    <div class="bottom-sheet-backdrop" id="friendQrModal" onclick="app.closeFriendQrModal()">
+      <div class="bottom-sheet-content" onclick="event.stopPropagation()" style="text-align: center;">
+        <div class="sheet-drag-handle"></div>
+        <div style="font-size: 17px; font-weight: 800; color: var(--text-main); margin-bottom: 4px;">Mã QR Kết Bạn</div>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">Đưa mã này để bạn bè quét và kết bạn tức thì</p>
+        
+        <div style="display: inline-block; padding: 12px; background: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-bottom: 12px;">
+          <img id="friendQrImg" src="" alt="QR Code" style="width: 170px; height: 170px; display: block; border-radius: 8px;">
+        </div>
+
+        <div style="font-size: 16px; font-weight: 800; color: var(--primary-green); margin-bottom: 4px;" id="friendQrName">Nhân Từ Đức</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;" id="friendQrTag">@nhantuduc</div>
+
+        <button class="btn-primary" onclick="app.copyMyFriendTag()" style="margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+          <span>Sao chép ID kết bạn</span>
+        </button>
+      </div>
+    </div>
+
+
     <!-- TOAST MESSAGE -->
     <div class="toast-msg" id="toastMsg">
       <i data-lucide="check-circle" style="width: 18px; height: 18px; color: var(--primary-green);"></i>
@@ -1254,6 +1365,10 @@
     </div>
 
   </div> <!-- End .mobile-viewport -->
+
+  <!-- Open-Source Micro Libraries (Confetti & SortableJS) -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
   <!-- App Scripts -->
   <script src="data.js"></script>

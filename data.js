@@ -135,8 +135,47 @@ const DEFAULT_FINANCE_DATA = {
       color: "#10B981",
       bg: "#D1FAE5"
     }
-  ]
+  ],
+
+  friends: {
+    tag: "@nhantuduc",
+    activeTab: "list",
+    list: [
+      {
+        id: "fr-1",
+        name: "Nguyễn Văn Thịnh",
+        tag: "@thinh_grab",
+        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80",
+        role: "Tài xế công nghệ 5⭐",
+        status: "accepted",
+        addedAt: "20/09/2026"
+      },
+      {
+        id: "fr-2",
+        name: "Trần Mai Anh",
+        tag: "@maianh_99",
+        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80",
+        role: "Thành viên Quỹ Gia Đình",
+        status: "accepted",
+        addedAt: "21/09/2026"
+      }
+    ],
+    requests: [
+      {
+        id: "req-1",
+        fromName: "Lê Hoàng Nam",
+        fromTag: "@nam_tech",
+        avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80",
+        role: "Bạn cùng nhóm",
+        time: "10 phút trước"
+      }
+    ]
+  }
 };
 
 // Khóa lưu trữ sạch mới
 const STORAGE_FINANCE_KEY = "finance_app_clean_user_v2";
+
+if (typeof module !== 'undefined') {
+  module.exports = { DEFAULT_FINANCE_DATA, STORAGE_FINANCE_KEY };
+}
