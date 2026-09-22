@@ -57,6 +57,7 @@ class FinanceApp {
     this.setupIcons();
     this.initPullToRefresh();
     this.initCurrencyMasks();
+    this.initViewportHeight();
   }
 
   // Khởi tạo hoặc load từ LocalStorage theo từng User riêng biệt (Multi-User Isolation)
@@ -143,6 +144,22 @@ class FinanceApp {
     };
     updateTime();
     setInterval(updateTime, 10000);
+  }
+
+  // Đồng bộ chuẩn xác chiều cao hiển thị trên Mobile Safari, PWA & Desktop (Triệt tiêu Chin Gap)
+  initViewportHeight() {
+    const updateHeight = () => {
+      const vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 0;
+      if (vh > 0 && typeof document !== 'undefined' && document.documentElement) {
+        document.documentElement.style.setProperty('--app-height', `${vh}px`);
+      }
+    };
+    updateHeight();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', updateHeight);
+      window.addEventListener('orientationchange', updateHeight);
+      window.addEventListener('pageshow', updateHeight);
+    }
   }
 
   // Format currency: 28500000 -> 28.500.000đ
