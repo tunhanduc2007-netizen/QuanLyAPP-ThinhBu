@@ -522,30 +522,50 @@ class GrabCloudSync {
     try {
       const cleanName = (profile.name || '').trim();
       const cleanTag = (profile.tag || '').trim();
+      const cleanUsername = (profile.username || '').trim();
       const searchTag = cleanTag.toLowerCase().replace('@', '');
       const searchName = cleanName
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[đĐ]/g, 'd')
         .toLowerCase();
+      const searchUsername = cleanUsername.toLowerCase();
 
-      await this.db.collection('public_users').doc(uid).set({
+      // Tạo mảng searchTokens: từng từ trong tên, tag, username phục vụ tìm kiếm siêu nhạy
+      const tokens = new Set();
+      if (searchTag) tokens.add(searchTag);
+      if (searchUsername) tokens.add(searchUsername);
+      if (searchName) {
+        tokens.add(searchName);
+        searchName.split(/\s+/).filter(Boolean).forEach(w => tokens.add(w));
+      }
+      if (cleanTag) tokens.add(cleanTag.toLowerCase());
+
+      const dataToSave = {
         uid: uid,
         name: cleanName || 'Người dùng',
+        username: cleanUsername,
         tag: cleanTag,
         searchTag: searchTag,
         searchName: searchName,
+        searchTokens: Array.from(tokens),
         avatar: profile.avatar || '',
         updatedAt: Date.now()
-      }, { merge: true });
+      };
+
+      await this.db.collection('public_users').doc(uid).set(dataToSave, { merge: true });
+      console.log('✅ Đã đồng bộ hồ sơ công khai public_users:', dataToSave.name, dataToSave.tag);
     } catch (e) {
-      console.warn('⚠️ Lỗi đồng bộ public_users:', e.message);
+      console.warn('⚠️ Lỗi đồng bộ public_users:', e.code, e.message);
+      if (e.code === 'permission-denied') {
+        console.error('🔥 FIRESTORE PERMISSION DENIED: Vui lòng Publish file firestore.rules trên Firebase Console!');
+      }
     }
   }
 
   async searchPublicUsers(query) {
     const rawQuery = (query || '').trim();
-    if (!rawQuery) return [];
+    if (!rawQuery) return { success: true, results: [] };
 
     const normQuery = rawQuery
       .normalize('NFD')
@@ -556,18 +576,18 @@ class GrabCloudSync {
 
     const results = [];
     const seenUids = new Set();
+    let firestoreError = null;
 
     // 1. Tìm trên Firestore nếu online và sẵn sàng
     if (this.isFirebaseReady && this.db) {
       try {
-        // Query theo searchTag chính xác hoặc tiền tố
-        const tagSnap = await this.db.collection('public_users')
-          .where('searchTag', '>=', normQuery)
-          .where('searchTag', '<=', normQuery + '\uf8ff')
+        // Query 1: Tìm theo searchTokens (array-contains) - Bắt trúng chính xác từng từ trong tên hoặc username
+        const tokenSnap = await this.db.collection('public_users')
+          .where('searchTokens', 'array-contains', normQuery)
           .limit(10)
           .get();
 
-        tagSnap.forEach(doc => {
+        tokenSnap.forEach(doc => {
           const d = doc.data();
           if (d && d.uid && !seenUids.has(d.uid)) {
             seenUids.add(d.uid);
@@ -575,7 +595,24 @@ class GrabCloudSync {
           }
         });
 
-        // Query theo searchName nếu kết quả ít
+        // Query 2: Tìm theo tiền tố searchTag
+        if (results.length < 5) {
+          const tagSnap = await this.db.collection('public_users')
+            .where('searchTag', '>=', normQuery)
+            .where('searchTag', '<=', normQuery + '\uf8ff')
+            .limit(10)
+            .get();
+
+          tagSnap.forEach(doc => {
+            const d = doc.data();
+            if (d && d.uid && !seenUids.has(d.uid)) {
+              seenUids.add(d.uid);
+              results.push(d);
+            }
+          });
+        }
+
+        // Query 3: Tìm theo tiền tố searchName
         if (results.length < 5) {
           const nameSnap = await this.db.collection('public_users')
             .where('searchName', '>=', normQuery)
@@ -592,11 +629,16 @@ class GrabCloudSync {
           });
         }
       } catch (e) {
-        console.warn('⚠️ Lỗi tìm kiếm Firestore public_users:', e.message);
+        console.warn('⚠️ Lỗi tìm kiếm Firestore public_users:', e.code, e.message);
+        firestoreError = e;
       }
     }
 
-    return results;
+    return {
+      success: !firestoreError,
+      error: firestoreError,
+      results: results
+    };
   }
 
   async syncFriendToCloud(friend) {

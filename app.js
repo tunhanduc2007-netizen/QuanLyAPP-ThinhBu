@@ -2616,19 +2616,39 @@ class FinanceApp {
 
     try {
       let results = [];
+      let searchRes = { success: true, results: [] };
+
       // 1. Tìm trên Firestore qua window.grabSync
       if (window.grabSync && typeof window.grabSync.searchPublicUsers === 'function') {
-        results = await window.grabSync.searchPublicUsers(query);
+        searchRes = await window.grabSync.searchPublicUsers(query);
+        results = searchRes.results || [];
       }
 
-      // 2. Tìm bổ sung trong cache tài khoản local nếu Firestore chưa có kết quả (hỗ trợ offline / tài khoản nội bộ)
+      // 2. Nếu gặp lỗi phân quyền do chưa publish rules trên Firebase Console
+      if (!searchRes.success && searchRes.error) {
+        if (searchRes.error.code === 'permission-denied') {
+          container.innerHTML = `
+            <div class="friend-search-empty-box" style="border: 1.5px solid #F59E0B; background: var(--bg-card); text-align: left; padding: 14px 16px;">
+              <div style="font-weight: 800; color: #D97706; margin-bottom: 6px; font-size: 13.5px;">⚠️ Cần Publish (Xuất bản) Rules trên Firebase Console!</div>
+              <div style="font-size: 12px; color: var(--text-muted); line-height: 1.55;">
+                Tệp <code>firestore.rules</code> đã được cập nhật nhưng <strong>chưa được bấm Publish trên Firebase Console</strong> nên máy chủ Google đang chặn quyền đọc danh bạ người dùng.<br>
+                👉 <strong>Cách kích hoạt:</strong> Mở <strong>Firebase Console &gt; Firestore Database &gt; Rules</strong>, dán nội dung file <code>firestore.rules</code> và bấm <strong>Publish</strong> là tìm kiếm được ngay!
+              </div>
+            </div>
+          `;
+          return;
+        }
+      }
+
+      // 3. Tìm bổ sung trong cache tài khoản local nếu Firestore chưa có kết quả (hỗ trợ offline / cùng thiết bị)
       if (results.length === 0) {
         const localAccounts = this.getLocalAccounts();
         Object.values(localAccounts).forEach(acc => {
           if (!acc) return;
           const accTag = (acc.tag || acc.username || '').toLowerCase().replace('@', '');
           const accName = (acc.name || '').toLowerCase();
-          if (accTag.includes(cleanQuery) || accName.includes(cleanQuery)) {
+          const accUser = (acc.username || '').toLowerCase();
+          if (accTag.includes(cleanQuery) || accName.includes(cleanQuery) || accUser.includes(cleanQuery)) {
             const tag = acc.tag || ('@' + (acc.username || 'user'));
             results.push({
               uid: acc.uid,
