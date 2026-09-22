@@ -1849,8 +1849,258 @@ class FinanceApp {
   }
 
   // ===================================================
-  // 16. GOOGLE AUTHENTICATION & LOGIN MANAGEMENT
+  // 16. AUTHENTICATION & LOGIN MANAGEMENT
   // ===================================================
+  switchAuthTab(tab) {
+    const tabLogin = document.getElementById('tabBtnLogin');
+    const tabRegister = document.getElementById('tabBtnRegister');
+    const formLogin = document.getElementById('authLoginForm');
+    const formRegister = document.getElementById('authRegisterForm');
+
+    if (tab === 'register') {
+      if (tabLogin) tabLogin.classList.remove('active');
+      if (tabRegister) tabRegister.classList.add('active');
+      if (formLogin) formLogin.style.display = 'none';
+      if (formRegister) formRegister.style.display = 'flex';
+    } else {
+      if (tabRegister) tabRegister.classList.remove('active');
+      if (tabLogin) tabLogin.classList.add('active');
+      if (formRegister) formRegister.style.display = 'none';
+      if (formLogin) formLogin.style.display = 'flex';
+    }
+
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  }
+
+  togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const isPass = input.type === 'password';
+    input.type = isPass ? 'text' : 'password';
+    if (btn) {
+      btn.innerHTML = `<i data-lucide="${isPass ? 'eye-off' : 'eye'}" style="width: 16px; height: 16px;"></i>`;
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+  }
+
+  normalizeUserToEmail(input) {
+    const trimmed = (input || '').trim().toLowerCase();
+    if (!trimmed) return '';
+    if (trimmed.includes('@')) return trimmed;
+    const sanitized = trimmed.replace(/[^a-z0-9._-]/g, '');
+    return sanitized ? `${sanitized}@fintrack.app` : 'user@fintrack.app';
+  }
+
+  getLocalAccounts() {
+    try {
+      return JSON.parse(localStorage.getItem('finance_local_accounts') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  saveLocalAccount(username, accountData) {
+    const accounts = this.getLocalAccounts();
+    accounts[username.toLowerCase()] = accountData;
+    if (accountData.email) {
+      accounts[accountData.email.toLowerCase()] = accountData;
+    }
+    localStorage.setItem('finance_local_accounts', JSON.stringify(accounts));
+  }
+
+  async handleRegisterWithCredentials() {
+    const nameEl = document.getElementById('regFullName');
+    const userEl = document.getElementById('regUsername');
+    const passEl = document.getElementById('regPassword');
+    const btn = document.getElementById('btnSubmitRegister');
+
+    const fullName = (nameEl ? nameEl.value : '').trim();
+    const rawUser = (userEl ? userEl.value : '').trim();
+    const password = passEl ? passEl.value : '';
+
+    if (!fullName) {
+      this.showToast('Vui lòng nhập họ và tên của bạn.');
+      if (nameEl) nameEl.focus();
+      return;
+    }
+    if (!rawUser || rawUser.length < 3) {
+      this.showToast('Tên tài khoản cần có ít nhất 3 ký tự.');
+      if (userEl) userEl.focus();
+      return;
+    }
+    if (!password || password.length < 6) {
+      this.showToast('Mật khẩu cần tối thiểu 6 ký tự.');
+      if (passEl) passEl.focus();
+      return;
+    }
+
+    const email = this.normalizeUserToEmail(rawUser);
+    const originalContent = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span style="display: inline-block; width: 16px; height: 16px; border: 2px solid #FFFFFF; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span> <span>Đang khởi tạo tài khoản...</span>`;
+    }
+
+    try {
+      // 1. Thử đăng ký qua Firebase Auth
+      let firebaseSuccess = false;
+      if (typeof firebase !== 'undefined' && firebase.auth) {
+        try {
+          const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+          if (user) {
+            await user.updateProfile({ displayName: fullName });
+            firebaseSuccess = true;
+            this.handleLoginSuccess({
+              name: fullName,
+              email: user.email || email,
+              avatar: this.getDefaultAvatarUrl(fullName),
+              uid: user.uid
+            });
+            this.showToast(`🎉 Chào mừng ${fullName} đến với FinTrack Pro!`);
+            return;
+          }
+        } catch (fbErr) {
+          console.warn('Firebase Auth email registration warning:', fbErr.code, fbErr.message);
+          if (fbErr.code === 'auth/email-already-in-use') {
+            this.showToast('Tài khoản này đã tồn tại! Đang chuyển sang tab Đăng nhập...');
+            const loginUserEl = document.getElementById('loginUsername');
+            if (loginUserEl) loginUserEl.value = rawUser;
+            this.switchAuthTab('login');
+            return;
+          }
+          // Nếu Firebase Console chưa bật Email/Password (auth/operation-not-allowed)
+          // hoặc gặp lỗi kết nối, kích hoạt cơ chế Local Fallback ngay lập tức
+        }
+      }
+
+      // 2. Local Fallback Account (Đảm bảo điện thoại chạy trơn tru 100% không bao giờ kẹt)
+      const uid = 'user_' + rawUser.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const accountData = {
+        name: fullName,
+        username: rawUser,
+        email: email,
+        password: password,
+        uid: uid,
+        avatar: this.getDefaultAvatarUrl(fullName),
+        createdAt: Date.now()
+      };
+      this.saveLocalAccount(rawUser, accountData);
+
+      this.handleLoginSuccess({
+        name: fullName,
+        email: email,
+        avatar: accountData.avatar,
+        uid: uid
+      });
+      this.showToast(`🎉 Tài khoản "${rawUser}" đã sẵn sàng trên thiết bị!`);
+    } catch (err) {
+      console.error('Lỗi tạo tài khoản:', err);
+      this.showToast('Không thể tạo tài khoản: ' + (err.message || 'Lỗi chưa xác định'));
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+      }
+    }
+  }
+
+  async handleLoginWithCredentials() {
+    const userEl = document.getElementById('loginUsername');
+    const passEl = document.getElementById('loginPassword');
+    const btn = document.getElementById('btnSubmitLogin');
+
+    const rawUser = (userEl ? userEl.value : '').trim();
+    const password = passEl ? passEl.value : '';
+
+    if (!rawUser) {
+      this.showToast('Vui lòng nhập Tên tài khoản hoặc Email.');
+      if (userEl) userEl.focus();
+      return;
+    }
+    if (!password) {
+      this.showToast('Vui lòng nhập mật khẩu.');
+      if (passEl) passEl.focus();
+      return;
+    }
+
+    const email = this.normalizeUserToEmail(rawUser);
+    const originalContent = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span style="display: inline-block; width: 16px; height: 16px; border: 2px solid #FFFFFF; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span> <span>Đang xác thực...</span>`;
+    }
+
+    try {
+      // 1. Kiểm tra tài khoản trong bộ nhớ máy (Local Accounts)
+      const localAccounts = this.getLocalAccounts();
+      const localAcc = localAccounts[rawUser.toLowerCase()] || localAccounts[email.toLowerCase()];
+      if (localAcc) {
+        if (localAcc.password === password) {
+          this.handleLoginSuccess({
+            name: localAcc.name || rawUser,
+            email: localAcc.email || email,
+            avatar: localAcc.avatar || this.getDefaultAvatarUrl(localAcc.name || rawUser),
+            uid: localAcc.uid
+          });
+          this.showToast(`🎉 Xin chào trở lại, ${localAcc.name || rawUser}!`);
+          return;
+        } else {
+          this.showToast('Mật khẩu không chính xác!');
+          return;
+        }
+      }
+
+      // 2. Thử đăng nhập qua Firebase Auth
+      if (typeof firebase !== 'undefined' && firebase.auth) {
+        try {
+          const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+          const user = userCredential.user;
+          if (user) {
+            this.handleLoginSuccess({
+              name: user.displayName || rawUser,
+              email: user.email || email,
+              avatar: user.photoURL || this.getDefaultAvatarUrl(user.displayName || rawUser),
+              uid: user.uid
+            });
+            this.showToast(`🎉 Đăng nhập thành công!`);
+            return;
+          }
+        } catch (fbErr) {
+          console.warn('Firebase Auth email login error:', fbErr.code, fbErr.message);
+          if (fbErr.code === 'auth/wrong-password') {
+            this.showToast('Mật khẩu không chính xác!');
+            return;
+          } else if (fbErr.code === 'auth/user-not-found' || fbErr.code === 'auth/invalid-credential') {
+            this.showToast('Chưa tìm thấy tài khoản này! Hãy bấm "Tạo tài khoản" để đăng ký mới nhé.');
+            this.switchAuthTab('register');
+            const regUserEl = document.getElementById('regUsername');
+            if (regUserEl) regUserEl.value = rawUser;
+            return;
+          }
+        }
+      }
+
+      // Nếu không khớp tài khoản nào
+      this.showToast('Tài khoản chưa tồn tại trên máy! Bạn hãy bấm sang tab "Tạo tài khoản" để đăng ký nhé.');
+      this.switchAuthTab('register');
+      const regUserEl = document.getElementById('regUsername');
+      if (regUserEl) regUserEl.value = rawUser;
+    } catch (err) {
+      console.error('Lỗi đăng nhập:', err);
+      this.showToast('Lỗi đăng nhập: ' + (err.message || 'Không thể đăng nhập'));
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalContent;
+      }
+    }
+  }
+
   initAuthListener() {
     if (typeof firebase !== 'undefined' && firebase.auth) {
       firebase.auth().onAuthStateChanged((user) => {

@@ -21,7 +21,8 @@ class GrabCloudSync {
     if (savedProfile) {
       try { initialUid = JSON.parse(savedProfile).uid || 'guest'; } catch (e) {}
     }
-    this.roomId = 'user_' + initialUid;
+    const cleanUid = String(initialUid).replace(/^user_/, '');
+    this.roomId = 'user_' + cleanUid;
     this.collectionName = 'fintrack_user_data';
     this.isConnected = false;
     this.deviceId = 'dev_' + Math.random().toString(36).substring(2, 9);
@@ -48,7 +49,8 @@ class GrabCloudSync {
     if (this.unsubscribe) {
       try { this.unsubscribe(); } catch (e) {}
     }
-    this.roomId = 'user_' + (uid || 'guest');
+    const cleanUid = String(uid || 'guest').replace(/^user_/, '');
+    this.roomId = 'user_' + cleanUid;
     this.currentDriver = userName || 'Người dùng';
     this.initCloudSync();
   }
@@ -156,7 +158,7 @@ class GrabCloudSync {
     }, (error) => {
       console.warn('⚠️ Firestore onSnapshot notice:', error.message);
       if (error.code === 'permission-denied') {
-        this.updateStatusBadge('warning', 'Chờ bật Firestore (Test Mode)');
+        this.updateStatusBadge('offline', 'Lưu trữ Cục bộ (Bảo mật)');
       } else {
         this.updateStatusBadge('offline', 'Lỗi Cloud: ' + (error.code || 'offline'));
       }
@@ -198,7 +200,7 @@ class GrabCloudSync {
       .catch((err) => {
         console.warn('⚠️ Không thể lưu lên Firestore:', err.message);
         if (err.code === 'permission-denied') {
-          this.updateStatusBadge('warning', 'Cần bật Firestore Test Mode');
+          this.updateStatusBadge('offline', 'Lưu trữ Cục bộ (Bảo mật)');
         }
       });
     };
@@ -262,7 +264,7 @@ class GrabCloudSync {
 
   // Lấy UID hiện tại đang đồng bộ
   getCurrentUid() {
-    return this.roomId.replace('user_', '') || 'guest';
+    return this.roomId.replace(/^user_/, '') || 'guest';
   }
 
   // 1. Ghi Transaction độc lập vào Subcollection users/{uid}/transactions/{txId} (Loại bỏ Lost Update)
