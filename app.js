@@ -2445,6 +2445,15 @@ class FinanceApp {
     const profileBadge = document.getElementById('profileFriendsBadge');
     if (profileBadge) profileBadge.textContent = this.data.friends.list.length;
 
+    // Tự động đồng bộ hồ sơ công khai của chính mình lên Cloud (để người khác tìm thấy)
+    if (this.isLoggedIn && window.grabSync && typeof window.grabSync.syncPublicProfile === 'function') {
+      window.grabSync.syncPublicProfile({
+        name: myName,
+        tag: myTag,
+        avatar: myAvatar
+      });
+    }
+
     // 3. Render Danh sách bạn bè
     const listContainer = document.getElementById('friendsListContainer');
     if (listContainer) {
@@ -2562,52 +2571,188 @@ class FinanceApp {
     this.saveData();
   }
 
-  searchAndAddFriend() {
+  clearFriendSearch() {
     const input = document.getElementById('friendSearchInput');
-    if (!input) return;
+    if (input) input.value = '';
+    const container = document.getElementById('friendSearchResultsContainer');
+    if (container) {
+      container.style.display = 'none';
+      container.innerHTML = '';
+    }
+    const clearBtn = document.getElementById('btnFriendSearchClear');
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+
+  async searchFriendUser() {
+    const input = document.getElementById('friendSearchInput');
+    const container = document.getElementById('friendSearchResultsContainer');
+    const clearBtn = document.getElementById('btnFriendSearchClear');
+    const btn = document.getElementById('btnFriendSearchAction');
+    if (!input || !container) return;
+
     const query = input.value.trim();
     if (!query) {
-      this.showToast('⚠️ Vui lòng nhập tên hoặc ID cần kết bạn!');
+      this.showToast('⚠️ Vui lòng nhập ID (@user) hoặc tên người dùng cần tìm!');
       input.focus();
       return;
     }
 
-    const myTag = this.getMyFriendTag().toLowerCase();
-    const cleanQuery = query.toLowerCase();
+    if (clearBtn) clearBtn.style.display = 'block';
 
-    if (cleanQuery === myTag || cleanQuery === myTag.replace('@', '')) {
-      this.showToast('⚠️ Bạn không thể kết bạn với chính mình!');
+    const myTag = this.getMyFriendTag().toLowerCase();
+    const cleanQuery = query.toLowerCase().replace('@', '');
+
+    // Hiển thị trạng thái đang tìm kiếm
+    container.style.display = 'block';
+    container.innerHTML = `
+      <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; text-align: center; color: var(--text-muted); font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+        <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #6366F1; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+        <span>Đang tìm kiếm tài khoản trên hệ thống...</span>
+      </div>
+    `;
+
+    const originalBtn = btn ? btn.innerHTML : '';
+    if (btn) btn.disabled = true;
+
+    try {
+      let results = [];
+      // 1. Tìm trên Firestore qua window.grabSync
+      if (window.grabSync && typeof window.grabSync.searchPublicUsers === 'function') {
+        results = await window.grabSync.searchPublicUsers(query);
+      }
+
+      // 2. Tìm bổ sung trong cache tài khoản local nếu Firestore chưa có kết quả (hỗ trợ offline / tài khoản nội bộ)
+      if (results.length === 0) {
+        const localAccounts = this.getLocalAccounts();
+        Object.values(localAccounts).forEach(acc => {
+          if (!acc) return;
+          const accTag = (acc.tag || acc.username || '').toLowerCase().replace('@', '');
+          const accName = (acc.name || '').toLowerCase();
+          if (accTag.includes(cleanQuery) || accName.includes(cleanQuery)) {
+            const tag = acc.tag || ('@' + (acc.username || 'user'));
+            results.push({
+              uid: acc.uid,
+              name: acc.name || acc.username,
+              tag: tag,
+              avatar: acc.avatar || this.getDefaultAvatarUrl(acc.name || acc.username)
+            });
+          }
+        });
+      }
+
+      // Render kết quả tìm kiếm ra thẻ
+      this.renderFriendSearchResults(results, query);
+    } catch (err) {
+      console.warn('Lỗi tìm kiếm bạn bè:', err);
+      container.innerHTML = `
+        <div class="friend-search-empty-box">
+          <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-bottom: 6px; color: #EF4444;"></i>
+          <div>Lỗi khi tìm kiếm: ${this.escapeHtml(err.message || 'Không thể kết nối')}</div>
+        </div>
+      `;
+      this.setupIcons();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalBtn;
+      }
+    }
+  }
+
+  // Alias tương thích ngược
+  searchAndAddFriend() {
+    this.searchFriendUser();
+  }
+
+  renderFriendSearchResults(results, query) {
+    const container = document.getElementById('friendSearchResultsContainer');
+    if (!container) return;
+
+    if (!results || results.length === 0) {
+      container.innerHTML = `
+        <div class="friend-search-empty-box">
+          <div style="font-weight: 700; color: var(--text-main); margin-bottom: 4px;">⚠️ Không tìm thấy người dùng nào</div>
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">Không có tài khoản nào trùng khớp với "<strong>${this.escapeHtml(query)}</strong>".<br>Hãy kiểm tra lại chính xác ID (ví dụ: @user1234) hoặc tên nhé!</div>
+        </div>
+      `;
       return;
     }
+
+    const myTag = this.getMyFriendTag().toLowerCase();
+    const myUid = this.data.user?.uid || (window.grabSync && window.grabSync.getCurrentUid());
+
+    container.innerHTML = results.map(u => {
+      const uTag = (u.tag || '').toLowerCase();
+      const isMe = (u.uid && u.uid === myUid) || (uTag && uTag === myTag);
+      const isAlreadyFriend = Array.isArray(this.data.friends?.list) && this.data.friends.list.some(f => 
+        (f.uid && u.uid && f.uid === u.uid) || 
+        (f.tag && u.tag && f.tag.toLowerCase() === u.tag.toLowerCase())
+      );
+
+      const defaultAv = this.getDefaultAvatarUrl(u.name);
+      const avSrc = u.avatar || defaultAv;
+      const safeUid = this.escapeHtml(u.uid || '');
+      const safeName = this.escapeHtml(u.name || '');
+      const safeTag = this.escapeHtml(u.tag || '');
+
+      let actionBtn = '';
+      if (isMe) {
+        actionBtn = `<span class="badge-tag-friends" style="background: var(--bg-card-subtle); color: var(--text-muted); font-size: 11px; padding: 5px 12px; font-weight: 700;">Tài khoản của bạn</span>`;
+      } else if (isAlreadyFriend) {
+        actionBtn = `<span class="badge-tag-friends" style="background: #ECFDF5; color: #10B981; font-size: 11px; padding: 5px 12px; font-weight: 700;">✓ Đã là bạn bè</span>`;
+      } else {
+        // Nút Kết Bạn chủ động trên thẻ xem trước
+        actionBtn = `
+          <button class="btn-add-friend-action" onclick="app.confirmAddFriend('${safeUid}', '${safeName}', '${safeTag}', '${this.escapeHtml(avSrc)}')">
+            <i data-lucide="user-plus" style="width: 14px; height: 14px;"></i>
+            <span>Kết bạn</span>
+          </button>
+        `;
+      }
+
+      return `
+        <div class="friend-search-result-card">
+          <div class="friend-item-left">
+            <img src="${this.escapeHtml(avSrc)}" alt="${safeName}" class="avatar-circle" style="width: 44px; height: 44px; object-fit: cover;" onerror="this.src='${defaultAv}'">
+            <div>
+              <div class="friend-item-name">${safeName}</div>
+              <div class="friend-item-sub">
+                <span class="friend-item-tag">${safeTag}</span>
+              </div>
+            </div>
+          </div>
+          <div>${actionBtn}</div>
+        </div>
+      `;
+    }).join('');
+
+    this.setupIcons();
+  }
+
+  confirmAddFriend(targetUid, targetName, targetTag, targetAvatar) {
+    if (!targetName) return;
 
     if (!this.data.friends) this.data.friends = { list: [], requests: [] };
     if (!Array.isArray(this.data.friends.list)) this.data.friends.list = [];
 
-    // Kiểm tra đã là bạn bè chưa
+    // Kiểm tra trùng lặp bạn bè
     const alreadyFriend = this.data.friends.list.some(f => 
-      f.tag?.toLowerCase() === cleanQuery || 
-      f.tag?.toLowerCase() === ('@' + cleanQuery) ||
-      f.name?.toLowerCase() === cleanQuery
+      (f.uid && targetUid && f.uid === targetUid) ||
+      (f.tag && targetTag && f.tag.toLowerCase() === targetTag.toLowerCase())
     );
 
     if (alreadyFriend) {
       this.showToast('ℹ️ Người này đã có trong danh sách bạn bè!');
-      input.value = '';
       return;
     }
 
-    // Tạo bạn bè mới: Viết hoa chuẩn từng từ và tạo tag không dấu kèm dãy số ngẫu nhiên
-    let displayName = query.startsWith('@') ? query.slice(1) : query;
-    displayName = displayName.split(/\s+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-
-    const tag = this.generateFriendTag(query, displayName);
-
     const newFriend = {
       id: this.generateAppUUID('fr'),
-      name: displayName,
-      tag: tag,
-      avatar: this.getDefaultAvatarUrl(displayName),
-      role: 'Bạn mới kết nối',
+      uid: targetUid || '',
+      name: targetName,
+      tag: targetTag,
+      avatar: targetAvatar || this.getDefaultAvatarUrl(targetName),
+      role: 'Bạn bè',
       status: 'accepted',
       addedAt: this.getLocalDateString()
     };
@@ -2617,13 +2762,20 @@ class FinanceApp {
     this.saveData();
     this.renderFriends();
 
+    // Đồng bộ friend lên Firestore
+    if (window.grabSync && typeof window.grabSync.syncFriendToCloud === 'function') {
+      window.grabSync.syncFriendToCloud(newFriend);
+    }
+
     // Hiệu ứng ăn mừng: âm thanh + pháo hoa + rung
     this.playCoinSound();
     this.triggerConfetti();
     this.triggerHaptic('medium');
 
-    this.showToast(`🎉 Đã kết bạn thành công với ${displayName} (${tag})!`);
-    input.value = '';
+    this.showToast(`🎉 Đã kết bạn thành công với ${targetName} (${targetTag})!`);
+
+    // Dọn dẹp ô tìm kiếm và ẩn thẻ kết quả
+    this.clearFriendSearch();
   }
 
   acceptFriendRequest(reqId) {
@@ -3168,6 +3320,15 @@ class FinanceApp {
     // Chuyển kênh Cloud Sync sang riêng biệt theo UID của người này
     if (window.grabSync && typeof window.grabSync.switchUser === 'function') {
       window.grabSync.switchUser(uid, userInfo.name);
+    }
+
+    // Tự động publish hồ sơ công khai lên public_users phục vụ tìm kiếm bạn bè thật
+    if (window.grabSync && typeof window.grabSync.syncPublicProfile === 'function') {
+      window.grabSync.syncPublicProfile({
+        name: userInfo.name,
+        tag: this.getMyFriendTag(),
+        avatar: this.data.user.avatar || this.getDefaultAvatarUrl(userInfo.name)
+      });
     }
 
     this.renderAll();

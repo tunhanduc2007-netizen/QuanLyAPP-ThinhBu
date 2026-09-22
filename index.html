@@ -1028,16 +1028,24 @@
           </button>
         </div>
 
-        <!-- Khung tìm kiếm & Kết bạn -->
+        <!-- Khung tìm kiếm người dùng thật -->
         <div class="friend-search-box">
           <div class="friend-search-input-wrap">
             <i data-lucide="search" style="width: 18px; height: 18px; color: var(--text-muted);"></i>
-            <input type="text" id="friendSearchInput" placeholder="Nhập tên hoặc ID (ví dụ: @user)..." onkeydown="if(event.key === 'Enter') app.searchAndAddFriend()">
+            <input type="text" id="friendSearchInput" placeholder="Nhập ID (ví dụ: @user) hoặc tên..." onkeydown="if(event.key === 'Enter') app.searchFriendUser()" oninput="if(!this.value.trim()) app.clearFriendSearch()">
+            <button id="btnFriendSearchClear" onclick="app.clearFriendSearch()" style="display: none; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px;">
+              <i data-lucide="x" style="width: 15px; height: 15px;"></i>
+            </button>
           </div>
-          <button class="btn-friend-search" onclick="app.searchAndAddFriend()">
-            <i data-lucide="user-plus" style="width: 16px; height: 16px;"></i>
-            <span>Kết bạn</span>
+          <button class="btn-friend-search" id="btnFriendSearchAction" onclick="app.searchFriendUser()">
+            <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+            <span>Tìm kiếm</span>
           </button>
+        </div>
+
+        <!-- Khung hiển thị kết quả tìm kiếm (Preview Card) -->
+        <div id="friendSearchResultsContainer" style="display: none; margin-bottom: 16px;">
+          <!-- Render thẻ kết quả tìm kiếm -->
         </div>
 
         <!-- Segmented Tabs: Bạn bè | Lời mời -->

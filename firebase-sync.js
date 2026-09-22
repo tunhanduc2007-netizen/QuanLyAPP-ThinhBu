@@ -510,6 +510,116 @@ class GrabCloudSync {
     this.currentDriver = driverId;
     localStorage.setItem('grab_current_user', driverId);
   }
+
+  // =========================================================================
+  // 4. HỒ SƠ CÔNG KHAI & TÌM KIẾM BẠN BÈ THẬT (PUBLIC USER DIRECTORY)
+  // =========================================================================
+  async syncPublicProfile(profile) {
+    if (!this.isFirebaseReady || !this.db) return;
+    const uid = this.getCurrentUid();
+    if (uid === 'guest' || !uid) return;
+
+    try {
+      const cleanName = (profile.name || '').trim();
+      const cleanTag = (profile.tag || '').trim();
+      const searchTag = cleanTag.toLowerCase().replace('@', '');
+      const searchName = cleanName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[đĐ]/g, 'd')
+        .toLowerCase();
+
+      await this.db.collection('public_users').doc(uid).set({
+        uid: uid,
+        name: cleanName || 'Người dùng',
+        tag: cleanTag,
+        searchTag: searchTag,
+        searchName: searchName,
+        avatar: profile.avatar || '',
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (e) {
+      console.warn('⚠️ Lỗi đồng bộ public_users:', e.message);
+    }
+  }
+
+  async searchPublicUsers(query) {
+    const rawQuery = (query || '').trim();
+    if (!rawQuery) return [];
+
+    const normQuery = rawQuery
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toLowerCase()
+      .replace('@', '');
+
+    const results = [];
+    const seenUids = new Set();
+
+    // 1. Tìm trên Firestore nếu online và sẵn sàng
+    if (this.isFirebaseReady && this.db) {
+      try {
+        // Query theo searchTag chính xác hoặc tiền tố
+        const tagSnap = await this.db.collection('public_users')
+          .where('searchTag', '>=', normQuery)
+          .where('searchTag', '<=', normQuery + '\uf8ff')
+          .limit(10)
+          .get();
+
+        tagSnap.forEach(doc => {
+          const d = doc.data();
+          if (d && d.uid && !seenUids.has(d.uid)) {
+            seenUids.add(d.uid);
+            results.push(d);
+          }
+        });
+
+        // Query theo searchName nếu kết quả ít
+        if (results.length < 5) {
+          const nameSnap = await this.db.collection('public_users')
+            .where('searchName', '>=', normQuery)
+            .where('searchName', '<=', normQuery + '\uf8ff')
+            .limit(10)
+            .get();
+
+          nameSnap.forEach(doc => {
+            const d = doc.data();
+            if (d && d.uid && !seenUids.has(d.uid)) {
+              seenUids.add(d.uid);
+              results.push(d);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ Lỗi tìm kiếm Firestore public_users:', e.message);
+      }
+    }
+
+    return results;
+  }
+
+  async syncFriendToCloud(friend) {
+    if (!this.isFirebaseReady || !this.db) return;
+    const uid = this.getCurrentUid();
+    if (uid === 'guest' || !uid || !friend || !friend.id) return;
+    try {
+      await this.db.collection('users').doc(uid).collection('friends').doc(friend.id).set(friend, { merge: true });
+    } catch (e) {
+      console.warn('⚠️ Lỗi lưu friend lên Firestore:', e.message);
+    }
+  }
+
+  async removeFriendFromCloud(friendId) {
+    if (!this.isFirebaseReady || !this.db) return;
+    const uid = this.getCurrentUid();
+    if (uid === 'guest' || !uid || !friendId) return;
+    try {
+      await this.db.collection('users').doc(uid).collection('friends').doc(friendId).delete();
+    } catch (e) {
+      console.warn('⚠️ Lỗi xóa friend trên Firestore:', e.message);
+    }
+  }
 }
 
 // Khởi tạo instance toàn cục

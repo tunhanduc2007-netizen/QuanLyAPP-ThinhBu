@@ -34,6 +34,11 @@ service cloud.firestore {
       match /goals/{goalId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // Subcollection: Bạn bè cá nhân
+      match /friends/{friendUid} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // =========================================================================
@@ -104,7 +109,17 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 5. MẶC ĐỊNH: CHẶN TOÀN BỘ MỌI ĐƯỜNG DẪN KHÁC (STRICT DEFAULT DENY)
+    // 5. DANH BẠ CÔNG KHAI & TÌM KIẾM BẠN BÈ (PUBLIC DIRECTORY: public_users)
+    // =========================================================================
+    match /public_users/{userId} {
+      // Bất kỳ ai đã đăng nhập đều có thể tìm kiếm và xem hồ sơ công khai
+      allow read: if request.auth != null;
+      // Chỉ chính chủ mới được tạo hoặc cập nhật hồ sơ công khai của mình
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // 6. MẶC ĐỊNH: CHẶN TOÀN BỘ MỌI ĐƯỜNG DẪN KHÁC (STRICT DEFAULT DENY)
     // =========================================================================
     match /{document=**} {
       allow read, write: if false;

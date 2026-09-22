@@ -2600,6 +2600,60 @@ input:checked + .slider:before {
   transform: scale(0.95);
 }
 
+.friend-search-result-card {
+  background: var(--bg-card);
+  border: 1.5px solid #6366F1;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.15);
+  animation: fadeInAuth 0.25s ease-out;
+}
+
+.friend-search-empty-box {
+  background: var(--bg-card);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 14px;
+  animation: fadeInAuth 0.25s ease-out;
+}
+
+.btn-add-friend-action {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: #10B981;
+  color: #FFFFFF;
+  border: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s;
+}
+
+.btn-add-friend-action:active {
+  transform: scale(0.95);
+}
+
+.btn-add-friend-action.disabled {
+  background: var(--bg-card-subtle);
+  color: var(--text-muted);
+  box-shadow: none;
+  cursor: default;
+  pointer-events: none;
+}
+
 .friend-item-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
