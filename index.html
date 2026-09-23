@@ -8,7 +8,8 @@
   
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json">
-  <!-- iOS Safari Add to Home Screen & Bookmarks Icon -->
+  <!-- iOS & Android PWA Add to Home Screen -->
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="FinTrack Pro">
@@ -23,10 +24,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="shortcut icon" href="/apple-touch-icon.png">
 
-  <!-- Google Fonts: Plus Jakarta Sans -->
+  <!-- Google Fonts: Luxury Neo-Grotesque Typography for Vietnamese FinTech -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- Micro Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -40,12 +41,13 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <!-- Compiled CSS Bundle -->
-  <link rel="stylesheet" href="/assets/app.css?v=15">
+  <link rel="stylesheet" href="/assets/app.css?v=19">
   
   <!-- Immediate Theme Initializer -->
   <script>
     try {
-      if (localStorage.getItem('fintrack_theme') === 'dark') {
+      var savedTheme = localStorage.getItem('fintrack_theme');
+      if (savedTheme === 'dark' || (!savedTheme && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
     } catch (e) {}
@@ -71,6 +73,6 @@
   <script src="/src/services/ai/ai-agent.js"></script>
 
   <!-- React Production Compiled Bundle -->
-  <script type="module" crossorigin src="/assets/app.js?v=10"></script>
+  <script type="module" crossorigin src="/assets/app.js?v=14"></script>
 </body>
 </html>

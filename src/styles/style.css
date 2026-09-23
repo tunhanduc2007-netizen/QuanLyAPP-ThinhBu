@@ -42,7 +42,7 @@
   --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
   --shadow-btn-green: 0 6px 16px rgba(16, 185, 129, 0.35);
 
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   
   --radius-xs: 6px;
   --radius-sm: 10px;
@@ -86,6 +86,155 @@
   --shadow-elevated: 0 12px 28px rgba(0, 0, 0, 0.5);
 }
 
+[data-theme="dark"] body {
+  background-color: #0B0F17 !important;
+}
+
+[data-theme="dark"] #root {
+  background-color: #0B0F17 !important;
+}
+
+[data-theme="dark"] .mobile-viewport {
+  background-color: #0B0F17 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="dark"] .screen-container,
+[data-theme="dark"] .app-screen {
+  background-color: #0B0F17 !important;
+}
+
+[data-theme="dark"] .bottom-sheet-content {
+  background-color: #111827 !important;
+  border-top: 1px solid #1F2937 !important;
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] .bottom-sheet-content input,
+[data-theme="dark"] .bottom-sheet-content select {
+  background-color: #1F2937 !important;
+  color: #F9FAFB !important;
+  border-color: #374151 !important;
+}
+
+[data-theme="dark"] select,
+[data-theme="dark"] select option {
+  background-color: #111827 !important;
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .bottom-nav-bar {
+  background: #111827 !important;
+  border-top: 1px solid #1F2937 !important;
+}
+
+[data-theme="dark"] .bottom-nav-bar:after {
+  background: #111827 !important;
+}
+
+[data-theme="dark"] .nav-item.active {
+  color: #10B981 !important;
+}
+
+[data-theme="dark"] .nav-active-pill {
+  background: #10B981 !important;
+}
+
+[data-theme="dark"] .ui-card {
+  background: #111827 !important;
+  border-color: #1F2937 !important;
+}
+
+[data-theme="dark"] .header-icon-btn,
+[data-theme="dark"] .btn-header-back,
+[data-theme="dark"] .btn-header-icon {
+  background: #111827 !important;
+  border-color: #1F2937 !important;
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] .auth-card-wrap {
+  background: #111827 !important;
+  border-color: #1F2937 !important;
+}
+
+[data-theme="dark"] .auth-tabs {
+  background: #1F2937 !important;
+  border-color: #374151 !important;
+}
+
+[data-theme="dark"] .auth-tab-btn.active {
+  background: #111827 !important;
+  color: #10B981 !important;
+}
+
+[data-theme="dark"] .auth-input {
+  background: #1F2937 !important;
+  border-color: #374151 !important;
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] .auth-label {
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] .segmented-control {
+  background: #1F2937 !important;
+  border-color: #374151 !important;
+}
+
+[data-theme="dark"] .segmented-tab.active {
+  background: #111827 !important;
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] .search-input-field {
+  background: #111827 !important;
+  border-color: #1F2937 !important;
+  color: #F9FAFB !important;
+}
+
+[data-theme="dark"] .filter-dropdown-btn {
+  background: #111827 !important;
+  border-color: #1F2937 !important;
+}
+
+[data-theme="dark"] .quick-chip {
+  background: #1F2937 !important;
+  border-color: #374151 !important;
+  color: #9CA3AF !important;
+}
+
+/* Custom Sleek Scrollbars */
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.35);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.55);
+}
+[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+}
+[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 /* Base Reset */
 * {
   margin: 0;
@@ -104,20 +253,39 @@ html {
 
 body {
   font-family: var(--font-sans);
-  background-color: #E2E8F0;
+  background-color: var(--bg-app);
   color: var(--text-main);
   height: 100%;
   height: 100dvh;
+  height: var(--app-height, 100dvh);
   width: 100%;
   margin: 0;
   padding: 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
   overflow: hidden;
   user-select: none;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
+  letter-spacing: -0.015em;
   overscroll-behavior-y: none;
+}
+
+h1, h2, h3, .screen-header-title, .user-name {
+  letter-spacing: -0.025em;
+}
+
+.hero-balance-card,
+.balance-amount,
+.rank-amount,
+.metric-card-val,
+.day-stat-val,
+.amount-big-field {
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
 }
 
 #root {
@@ -125,46 +293,27 @@ body {
   height: 100%;
   height: 100dvh;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
+  background-color: var(--bg-app);
 }
 
-/* Centered Mobile Device Frame (Android / iPhone Style Ratio) */
+/* Full Viewport App Shell (Responsive Mobile & Desktop) */
 .mobile-viewport {
   width: 100%;
-  max-width: 440px;
+  max-width: 100%;
   height: 100%;
   height: 100dvh;
-  background-color: #F8FAFC;
+  height: var(--app-height, 100dvh);
+  background-color: var(--bg-viewport, var(--bg-app));
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 50px -10px rgba(15, 23, 42, 0.16);
-  margin: 0 auto;
+  box-shadow: none;
+  border: none;
+  border-radius: 0;
+  margin: 0;
   transition: background-color 0.3s ease;
-}
-
-@media (min-width: 481px) {
-  .mobile-viewport {
-    height: 94vh;
-    max-height: 920px;
-    border-radius: 36px;
-    border: 8px solid #0F172A;
-  }
-}
-
-@media (max-width: 480px) {
-  body {
-    background-color: #F8FAFC;
-  }
-  .mobile-viewport {
-    max-width: 100%;
-    height: 100dvh;
-    border-radius: 0;
-    border: none;
-    box-shadow: none;
-  }
 }
 
 /* Hide fake iOS status bar and dynamic island */
@@ -2061,7 +2210,7 @@ input:checked + .slider:before {
 .bottom-sheet-content {
   position: relative;
   width: 100%;
-  max-width: 440px;
+  max-width: 520px;
   margin: 0 auto;
   background: var(--bg-card);
   border-radius: 24px 24px 0 0;
@@ -2162,7 +2311,7 @@ input:checked + .slider:before {
    16. LOGIN SCREEN (GOOGLE SIGN-IN)
    =================================================== */
 .login-screen-wrap {
-  max-width: 440px;
+  max-width: 500px;
   margin: 0 auto;
   min-height: 100%;
   display: flex;

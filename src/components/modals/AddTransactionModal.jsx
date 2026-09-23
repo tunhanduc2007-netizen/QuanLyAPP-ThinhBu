@@ -327,13 +327,13 @@ export default function AddTransactionModal() {
             style={{
               padding: '10px 0',
               borderRadius: 11,
-              border: 'none',
               fontWeight: 800,
               fontSize: 14,
               cursor: 'pointer',
-              background: isExpense ? '#FFFFFF' : 'transparent',
+              background: isExpense ? 'var(--bg-card, #FFFFFF)' : 'transparent',
               color: isExpense ? '#EF4444' : 'var(--text-muted)',
               boxShadow: isExpense ? '0 3px 10px rgba(239, 68, 68, 0.15)' : 'none',
+              border: isExpense ? '1px solid var(--border-color, transparent)' : 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -357,11 +357,11 @@ export default function AddTransactionModal() {
             style={{
               padding: '10px 0',
               borderRadius: 11,
-              border: 'none',
+              border: !isExpense ? '1px solid var(--border-color, transparent)' : 'none',
               fontWeight: 800,
               fontSize: 14,
               cursor: 'pointer',
-              background: !isExpense ? '#FFFFFF' : 'transparent',
+              background: !isExpense ? 'var(--bg-card, #FFFFFF)' : 'transparent',
               color: !isExpense ? '#10B981' : 'var(--text-muted)',
               boxShadow: !isExpense ? '0 3px 10px rgba(16, 185, 129, 0.15)' : 'none',
               display: 'flex',
@@ -611,7 +611,7 @@ export default function AddTransactionModal() {
                       height: 18,
                       borderRadius: '50%',
                       border: isSel ? `5px solid ${iconColor}` : '2px solid var(--border-color, #CBD5E1)',
-                      background: '#FFFFFF',
+                      background: 'var(--bg-card, #FFFFFF)',
                       transition: 'all 0.15s ease'
                     }}
                   />

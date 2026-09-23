@@ -19,7 +19,7 @@ export default function FriendQrModal() {
   };
 
   return (
-    <div className="bottom-sheet-backdrop" style={{ display: 'flex' }} onClick={() => setIsFriendQrOpen(false)}>
+    <div className="bottom-sheet-backdrop show active" onClick={() => setIsFriendQrOpen(false)}>
       <div className="bottom-sheet-content" onClick={e => e.stopPropagation()} style={{ textAlign: 'center' }}>
         <div className="sheet-drag-handle"></div>
         <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)', marginBottom: 4 }}>

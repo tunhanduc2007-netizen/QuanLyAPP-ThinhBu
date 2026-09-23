@@ -280,6 +280,46 @@ export function AuthProvider({ children }) {
     return updated;
   };
 
+  const changePassword = async (oldPassword, newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự.');
+    }
+
+    // 1. Kiểm tra và cập nhật qua Firebase Auth nếu khả dụng
+    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) {
+      const user = firebase.auth().currentUser;
+      if (user.email && oldPassword && firebase.auth.EmailAuthProvider) {
+        try {
+          const cred = firebase.auth.EmailAuthProvider.credential(user.email, oldPassword);
+          await user.reauthenticateWithCredential(cred);
+        } catch (reauthErr) {
+          if (reauthErr.code === 'auth/wrong-password') {
+            throw new Error('Mật khẩu hiện tại không chính xác.');
+          }
+          console.warn('Reauth warning:', reauthErr);
+        }
+      }
+      try {
+        await user.updatePassword(newPassword);
+      } catch (err) {
+        if (err.code === 'auth/requires-recent-login') {
+          throw new Error('Phiên đăng nhập đã cũ. Vui lòng đăng xuất và đăng nhập lại để đổi mật khẩu.');
+        }
+        throw new Error(err.message || 'Không thể đổi mật khẩu trên Firebase.');
+      }
+    }
+
+    // 2. Cập nhật mật khẩu offline / local storage
+    try {
+      const passStore = JSON.parse(localStorage.getItem('finance_local_passwords') || '{}');
+      const key = (currentUser?.email || currentUser?.username || 'user').toLowerCase();
+      passStore[key] = newPassword;
+      localStorage.setItem('finance_local_passwords', JSON.stringify(passStore));
+    } catch (e) {}
+
+    return true;
+  };
+
   const logout = () => {
     if (typeof firebase !== 'undefined' && firebase.auth) {
       firebase.auth().signOut().catch(() => {});
@@ -304,6 +344,7 @@ export function AuthProvider({ children }) {
         loginAsGuest,
         loginWithGoogle,
         updateUserProfile,
+        changePassword,
         logout
       }}
     >

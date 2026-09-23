@@ -38,7 +38,7 @@ export default function TransferModal() {
   const fromAccObj = wallets.accounts.find(a => a.name === fromAccount);
 
   return (
-    <div className="bottom-sheet-backdrop" style={{ display: 'flex' }} onClick={() => setIsTransferOpen(false)}>
+    <div className="bottom-sheet-backdrop show active" onClick={() => setIsTransferOpen(false)}>
       <div className="bottom-sheet-content" onClick={e => e.stopPropagation()}>
         <div className="sheet-drag-handle"></div>
         <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', marginBottom: 16, textAlign: 'center' }}>

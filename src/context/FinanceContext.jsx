@@ -44,9 +44,20 @@ export function FinanceProvider({ children }) {
           { id: "acc-2", name: "Tiền mặt", icon: "banknote", balance: cashBal, color: "#06B6D4", bg: "#CFFAFE" }
         ];
 
+        // Clean legacy pre-configured budgets so user gets suggestions instead of forced presets
+        let userBudgets = parsed.budgets || [];
+        const isLegacyPreConfigured = Array.isArray(userBudgets) &&
+          userBudgets.length > 0 &&
+          userBudgets.every(b => (b.id || '').startsWith('bg-') && (!b.used || Number(b.used) === 0));
+
+        if (isLegacyPreConfigured) {
+          userBudgets = [];
+        }
+
         return {
           ...DEFAULT_FINANCE_DATA,
           ...parsed,
+          budgets: userBudgets,
           wallets: {
             ...parsed.wallets,
             totalBalance: bankBal + cashBal,
@@ -528,6 +539,17 @@ export function FinanceProvider({ children }) {
   }, [showToast]);
 
   /**
+   * Xóa toàn bộ ngân sách để thiết lập lại từ gợi ý
+   */
+  const clearAllBudgets = useCallback(() => {
+    setData(prev => {
+      const updated = { ...prev, budgets: [] };
+      return updated;
+    });
+    showToast('Đã xóa tất cả ngân sách. Bạn có thể chọn danh mục gợi ý để thiết lập.');
+  }, [showToast]);
+
+  /**
    * Xác nhận và ghi hàng loạt giao dịch do AI đề xuất
    */
   const confirmAITransactions = useCallback(async (proposals = []) => {
@@ -592,6 +614,60 @@ export function FinanceProvider({ children }) {
   }, [showToast]);
 
   /**
+   * Nạp dữ liệu mẫu trải nghiệm (Demo Data 1-Click)
+   */
+  const seedDemoData = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const demoTransactions = [
+      { id: 'demo_1', type: 'income', amount: 25000000, category: 'Lương', account: 'Tài khoản ngân hàng', note: 'Lương tháng này', isoDate: today },
+      { id: 'demo_2', type: 'expense', amount: 450000, category: 'Ăn uống', account: 'Tiền mặt', note: 'Ăn trưa & Cafe đối tác', isoDate: today },
+      { id: 'demo_3', type: 'expense', amount: 80000, category: 'Xăng xe', account: 'Tiền mặt', note: 'Đổ xăng đầy bình', isoDate: today },
+      { id: 'demo_4', type: 'expense', amount: 720000, category: 'Ăn uống', account: 'Tài khoản ngân hàng', note: 'Đi siêu thị Vinmart cuối tuần', isoDate: today },
+      { id: 'demo_5', type: 'expense', amount: 1500000, category: 'Mua sắm', account: 'Tài khoản ngân hàng', note: 'Giày thể thao tập gym', isoDate: today },
+      { id: 'demo_6', type: 'expense', amount: 4500000, category: 'Nhà ở', account: 'Tài khoản ngân hàng', note: 'Tiền phòng & điện nước', isoDate: today },
+      { id: 'demo_7', type: 'expense', amount: 350000, category: 'Giải trí', account: 'Tiền mặt', note: 'Xem phim cuối tuần', isoDate: today },
+      { id: 'demo_8', type: 'income', amount: 3000000, category: 'Thưởng', account: 'Tài khoản ngân hàng', note: 'Thưởng KPI dự án', isoDate: today }
+    ];
+
+    const demoBudgets = [
+      { id: 'b_demo_1', title: 'Ăn uống', target: 3000000, icon: '🍜', period: 'monthly' },
+      { id: 'b_demo_2', title: 'Mua sắm', target: 2500000, icon: '🛍️', period: 'monthly' },
+      { id: 'b_demo_3', title: 'Xăng xe', target: 500000, icon: '⛽', period: 'monthly' }
+    ];
+
+    const demoGoals = [
+      { id: 'g_demo_1', title: 'Mua xe máy mới', icon: '🏍️', targetAmount: 25000000, currentAmount: 9000000, deadline: '2026-12-31' },
+      { id: 'g_demo_2', title: 'Quỹ khẩn cấp', icon: '🛡️', targetAmount: 20000000, currentAmount: 5000000, deadline: '2027-06-30' }
+    ];
+
+    const demoWallets = {
+      accounts: [
+        { id: 'acc_cash', name: 'Tiền mặt', balance: 3500000, color: '#10B981' },
+        { id: 'acc_bank', name: 'Tài khoản ngân hàng', balance: 18500000, color: '#3B82F6' }
+      ]
+    };
+
+    const demoData = {
+      ...DEFAULT_FINANCE_DATA,
+      transactions: demoTransactions,
+      budgets: demoBudgets,
+      goals: demoGoals,
+      wallets: demoWallets,
+      overview: {
+        totalIncome: 28000000,
+        totalExpense: 7600000,
+        netSavings: 20400000
+      }
+    };
+
+    setData(demoData);
+    try {
+      localStorage.setItem(STORAGE_FINANCE_KEY, JSON.stringify(demoData));
+    } catch (e) {}
+    showToast('Đã nạp dữ liệu mẫu 1-click thành công!');
+  }, [showToast]);
+
+  /**
    * Khôi phục toàn bộ dữ liệu từ tệp sao lưu JSON
    */
   const restoreData = useCallback((importedData) => {
@@ -603,6 +679,60 @@ export function FinanceProvider({ children }) {
     showToast('Khôi phục dữ liệu sao lưu thành công!');
   }, [showToast]);
 
+  /**
+   * Quản lý Bạn bè (Thêm / Xóa vào state & local storage)
+   */
+  const addFriendToState = useCallback((friend) => {
+    setData(prev => {
+      const currentList = prev.friends?.list || [];
+      const friendUid = friend.uid || friend.id;
+      if (currentList.some(f => (f.uid || f.id) === friendUid)) {
+        return prev;
+      }
+      const updatedList = [
+        ...currentList,
+        {
+          id: friendUid || ('fr_' + Date.now()),
+          uid: friendUid,
+          name: friend.name || 'Bạn bè',
+          email: friend.email || '',
+          avatar: friend.avatar || '',
+          score: Number(friend.score) || 0,
+          addedAt: new Date().toISOString()
+        }
+      ];
+      const updated = {
+        ...prev,
+        friends: {
+          ...prev.friends,
+          list: updatedList
+        }
+      };
+      try {
+        localStorage.setItem(STORAGE_FINANCE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  }, []);
+
+  const removeFriendFromState = useCallback((friendId) => {
+    setData(prev => {
+      const currentList = prev.friends?.list || [];
+      const updatedList = currentList.filter(f => (f.id || f.uid) !== friendId);
+      const updated = {
+        ...prev,
+        friends: {
+          ...prev.friends,
+          list: updatedList
+        }
+      };
+      try {
+        localStorage.setItem(STORAGE_FINANCE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+  }, []);
+
   const value = useMemo(() => ({
     data,
     transactions: data.transactions,
@@ -613,6 +743,8 @@ export function FinanceProvider({ children }) {
     groups: data.groups,
     ranking: data.ranking,
     friends: data.friends,
+    addFriendToState,
+    removeFriendFromState,
     notifications: data.notifications,
     activeTab,
     setActiveTab,
@@ -655,8 +787,10 @@ export function FinanceProvider({ children }) {
     addBudget,
     saveBudget,
     deleteBudget,
+    clearAllBudgets,
     confirmAITransactions,
     resetAllDataClean,
+    seedDemoData,
     restoreData,
     isPrivacyMode,
     togglePrivacyMode,
@@ -688,9 +822,13 @@ export function FinanceProvider({ children }) {
     addBudget,
     saveBudget,
     deleteBudget,
+    clearAllBudgets,
     confirmAITransactions,
     resetAllDataClean,
+    seedDemoData,
     restoreData,
+    addFriendToState,
+    removeFriendFromState,
     isPrivacyMode,
     togglePrivacyMode,
     formatMoney

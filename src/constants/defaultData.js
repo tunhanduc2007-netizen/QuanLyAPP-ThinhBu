@@ -82,14 +82,7 @@ export const DEFAULT_FINANCE_DATA = {
     }
   },
 
-  budgets: [
-    { id: "bg-1", title: "Ăn uống", icon: "utensils", color: "#EF4444", bg: "#FEE2E2", used: 0, target: 5000000, percent: 0, isWarning: false },
-    { id: "bg-2", title: "Xăng xe", icon: "fuel", color: "#F97316", bg: "#FFEDD5", used: 0, target: 2000000, percent: 0, isWarning: false },
-    { id: "bg-3", title: "Mua sắm", icon: "shopping-bag", color: "#EC4899", bg: "#FCE7F3", used: 0, target: 3000000, percent: 0, isWarning: false },
-    { id: "bg-4", title: "Giải trí", icon: "gamepad-2", color: "#8B5CF6", bg: "#EDE9FE", used: 0, target: 1500000, percent: 0, isWarning: false },
-    { id: "bg-5", title: "Nhà ở", icon: "home", color: "#10B981", bg: "#D1FAE5", used: 0, target: 5000000, percent: 0, isWarning: false },
-    { id: "bg-6", title: "Khác", icon: "more-horizontal", color: "#64748B", bg: "#F1F5F9", used: 0, target: 1000000, percent: 0, isWarning: false }
-  ],
+  budgets: [],
 
   goals: [],
 
