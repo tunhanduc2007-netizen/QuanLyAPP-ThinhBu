@@ -412,19 +412,19 @@ export default function SettingsPage() {
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
                 {/* Preset 1: 3D Male Avatar */}
                 <div
-                  onClick={() => handleSelectAvatar('/images/avatar_1.jpg')}
+                  onClick={() => handleSelectAvatar('./images/avatar_1.jpg')}
                   style={{
                     cursor: 'pointer',
                     borderRadius: 12,
                     padding: 3,
-                    border: currentUser?.avatar === '/images/avatar_1.jpg' ? '2px solid var(--primary-green)' : '2px solid transparent',
+                    border: (currentUser?.avatar === './images/avatar_1.jpg' || currentUser?.avatar === '/images/avatar_1.jpg') ? '2px solid var(--primary-green)' : '2px solid transparent',
                     background: 'var(--bg-card-subtle, #F8FAFC)',
                     textAlign: 'center'
                   }}
                   title="3D Tech Professional"
                 >
                   <img
-                    src="/images/avatar_1.jpg"
+                    src="./images/avatar_1.jpg"
                     alt="3D Avatar Nam"
                     style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', display: 'block' }}
                   />
@@ -433,19 +433,19 @@ export default function SettingsPage() {
 
                 {/* Preset 2: 3D Female Avatar */}
                 <div
-                  onClick={() => handleSelectAvatar('/images/avatar_2.jpg')}
+                  onClick={() => handleSelectAvatar('./images/avatar_2.jpg')}
                   style={{
                     cursor: 'pointer',
                     borderRadius: 12,
                     padding: 3,
-                    border: currentUser?.avatar === '/images/avatar_2.jpg' ? '2px solid var(--primary-green)' : '2px solid transparent',
+                    border: (currentUser?.avatar === './images/avatar_2.jpg' || currentUser?.avatar === '/images/avatar_2.jpg') ? '2px solid var(--primary-green)' : '2px solid transparent',
                     background: 'var(--bg-card-subtle, #F8FAFC)',
                     textAlign: 'center'
                   }}
                   title="3D Financial Manager"
                 >
                   <img
-                    src="/images/avatar_2.jpg"
+                    src="./images/avatar_2.jpg"
                     alt="3D Avatar Nữ"
                     style={{ width: 56, height: 56, borderRadius: 10, objectFit: 'cover', display: 'block' }}
                   />
@@ -539,7 +539,7 @@ export default function SettingsPage() {
           {/* 3D Fintech Visual Banner */}
           <div style={{ position: 'relative', width: '100%', height: 160, overflow: 'hidden' }}>
             <img
-              src="/images/fintech_report_banner.jpg"
+              src="./images/fintech_report_banner.jpg"
               alt="Báo cáo tài chính 3D"
               style={{
                 width: '100%',

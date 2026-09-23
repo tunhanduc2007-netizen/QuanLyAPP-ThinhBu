@@ -4,7 +4,7 @@
   "description": "FinTrack Pro — FinTech PWA with Firestore Ledger SSOT, Atomic Transfers & AI Assistant",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node -e \"require('fs').cpSync('dist/assets', 'assets', {recursive: true})\"",
     "preview": "vite preview",
     "start": "vite",
     "test": "node tests/backend/test_backend_logic.js && node tests/ledger/test_ledger_ssot.js && node tests/ledger/test_idempotency.js && node tests/offline/test_offline_queue.js && node scripts/verify_final.js",
