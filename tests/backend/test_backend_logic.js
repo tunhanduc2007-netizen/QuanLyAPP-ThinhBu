@@ -25,7 +25,8 @@ global.window = {};
 
 // 2. Load Core Data & Logic
 const fs = require('fs');
-const dataContent = fs.readFileSync('./data.js', 'utf8');
+const path = require('path');
+const dataContent = fs.readFileSync(path.join(__dirname, '../../src/constants/data.js'), 'utf8');
 const vm = require('vm');
 vm.runInThisContext(dataContent);
 global.DEFAULT_FINANCE_DATA = DEFAULT_FINANCE_DATA;

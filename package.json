@@ -1,7 +1,23 @@
 {
-  "name": "quan-ly-app-grab",
-  "version": "1.0.0",
+  "name": "fintrack-pro",
+  "version": "2.0.0",
+  "description": "FinTrack Pro — FinTech PWA with Firestore Ledger SSOT, Atomic Transfers & AI Assistant",
   "scripts": {
-    "start": "start http://localhost:3000 && npx serve ."
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite",
+    "test": "node tests/backend/test_backend_logic.js && node tests/ledger/test_ledger_ssot.js && node tests/ledger/test_idempotency.js && node tests/offline/test_offline_queue.js && node scripts/verify_final.js",
+    "test:all": "node tests/backend/test_backend_logic.js && node tests/concurrency/test_concurrency.js && node tests/security/test_firestore_security.js && node tests/friends/test_friend_search.js && node tests/ledger/test_ledger_ssot.js && node tests/ledger/test_idempotency.js && node tests/migration/test_migration.js && node tests/offline/test_offline_queue.js && node tests/scale/test_scale.js && node scripts/verify_final.js && node tests/ai/test_ai_schema.js && node tests/ai/test_ai_validation.js && node tests/ai/test_ai_transaction_parser.js && node tests/ai/test_ai_receipt_parser.js && node tests/ai/test_ai_financial_insights.js && node tests/ai/test_ai_idempotency.js",
+    "test:ai": "node tests/ai/test_ai_schema.js && node tests/ai/test_ai_validation.js && node tests/ai/test_ai_transaction_parser.js && node tests/ai/test_ai_receipt_parser.js && node tests/ai/test_ai_financial_insights.js && node tests/ai/test_ai_idempotency.js",
+    "verify": "node scripts/verify_final.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.7"
   }
 }

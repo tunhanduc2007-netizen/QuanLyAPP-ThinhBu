@@ -58,6 +58,7 @@ class FinanceApp {
     this.initPullToRefresh();
     this.initCurrencyMasks();
     this.initViewportHeight();
+    this.initAIAgent();
   }
 
   // Khởi tạo hoặc load từ LocalStorage theo từng User riêng biệt (Multi-User Isolation)
@@ -3381,6 +3382,516 @@ class FinanceApp {
       this.navTo('screen-login');
       this.showToast('Đã đăng xuất thành công.');
     }
+  }
+
+  // ===================================================
+  // AI AGENT LAYER INTEGRATION
+  // BẢO ĐẢM NGUYÊN TẮC: AI KHÔNG PHẢI FINANCIAL SOURCE OF TRUTH
+  // ===================================================
+
+  initAIAgent() {
+    this.currentAIProposals = [];
+    if (typeof AIAgent !== 'undefined' && AIAgent.AIAgentFacade) {
+      let config = { AI_ENABLED: true, activeProviderType: 'local', geminiApiKey: '' };
+      try {
+        const saved = localStorage.getItem('fintrack_ai_config');
+        if (saved) config = { ...config, ...JSON.parse(saved) };
+      } catch (e) {}
+
+      this.aiAgent = new AIAgent.AIAgentFacade(config);
+      window.aiAgent = this.aiAgent;
+
+      // Sync settings UI if elements are in DOM
+      const toggle = document.getElementById('aiAgentEnabledToggle');
+      if (toggle) toggle.checked = !!config.AI_ENABLED;
+
+      const provSelect = document.getElementById('aiProviderSelect');
+      if (provSelect) provSelect.value = config.activeProviderType || 'local';
+
+      const keyWrap = document.getElementById('aiGeminiKeyWrap');
+      if (keyWrap) keyWrap.style.display = config.activeProviderType === 'gemini' ? 'block' : 'none';
+
+      const keyInput = document.getElementById('aiGeminiApiKeyInput');
+      if (keyInput && config.geminiApiKey) keyInput.value = config.geminiApiKey;
+    }
+  }
+
+  saveAISettings(updates = {}) {
+    try {
+      let config = { AI_ENABLED: true, activeProviderType: 'local', geminiApiKey: '' };
+      const saved = localStorage.getItem('fintrack_ai_config');
+      if (saved) config = { ...config, ...JSON.parse(saved) };
+      config = { ...config, ...updates };
+      localStorage.setItem('fintrack_ai_config', JSON.stringify(config));
+    } catch (e) {}
+  }
+
+  toggleAIFeature(enabled) {
+    if (this.aiAgent) {
+      this.aiAgent.setFeatureFlag('AI_ENABLED', enabled);
+    }
+    this.saveAISettings({ AI_ENABLED: enabled });
+    this.showToast(enabled ? 'Đã bật AI Trợ lý tài chính' : 'Đã tạm tắt AI Trợ lý');
+  }
+
+  changeAIProvider(providerType) {
+    const keyWrap = document.getElementById('aiGeminiKeyWrap');
+    if (keyWrap) {
+      keyWrap.style.display = providerType === 'gemini' ? 'block' : 'none';
+    }
+
+    if (this.aiAgent) {
+      if (providerType === 'gemini') {
+        const key = document.getElementById('aiGeminiApiKeyInput')?.value?.trim() || '';
+        this.aiAgent.setGeminiApiKey(key);
+      } else {
+        this.aiAgent.useLocalProvider();
+      }
+    }
+    this.saveAISettings({ activeProviderType: providerType });
+    this.showToast(`Đã chuyển sang ${providerType === 'gemini' ? 'Google Gemini' : 'Mock Local Engine'}`);
+  }
+
+  saveGeminiApiKey() {
+    const input = document.getElementById('aiGeminiApiKeyInput');
+    const key = input ? input.value.trim() : '';
+    if (!key) {
+      this.showToast('Vui lòng nhập API Key hợp lệ');
+      return;
+    }
+    if (this.aiAgent) {
+      this.aiAgent.setGeminiApiKey(key);
+    }
+    this.saveAISettings({ geminiApiKey: key, activeProviderType: 'gemini' });
+    this.showToast('Đã lưu Google Gemini API Key');
+  }
+
+  openAIAssistantModal() {
+    const modal = document.getElementById('aiAssistantModal');
+    if (modal) {
+      modal.classList.add('active');
+      const err = document.getElementById('aiAssistantError');
+      if (err) err.style.display = 'none';
+      const input = document.getElementById('aiInputText');
+      if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 300);
+      }
+    }
+  }
+
+  closeAIAssistantModal() {
+    const modal = document.getElementById('aiAssistantModal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  fillAIPrompt(text) {
+    const input = document.getElementById('aiInputText');
+    if (input) {
+      input.value = text;
+      input.focus();
+    }
+  }
+
+  async handleAIExtractSubmit() {
+    const input = document.getElementById('aiInputText');
+    const text = input ? input.value.trim() : '';
+    const errEl = document.getElementById('aiAssistantError');
+    const btnExtract = document.getElementById('btnAIExtract');
+
+    if (!text) {
+      if (errEl) {
+        errEl.textContent = 'Vui lòng nhập câu miêu tả giao dịch của bạn!';
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+
+    if (!this.aiAgent) {
+      this.initAIAgent();
+    }
+
+    if (errEl) errEl.style.display = 'none';
+    if (btnExtract) {
+      btnExtract.disabled = true;
+      btnExtract.innerHTML = '<i data-lucide="loader" style="width: 16px; height: 16px; animation: spin 1s linear infinite;"></i> <span>Đang phân tích...</span>';
+      this.setupIcons();
+    }
+
+    try {
+      const availableWallets = this.data.wallets?.accounts || [
+        { id: 'acc-cash', name: 'Tiền mặt' },
+        { id: 'acc-bank', name: 'Ngân hàng' }
+      ];
+
+      const res = await this.aiAgent.parseExpense(text, { availableWallets });
+
+      if (res.status === 'NEEDS_CLARIFICATION' || res.status === 'REJECTED' || res.status === 'PROVIDER_ERROR' || res.status === 'DISABLED' || res.status === 'RATE_LIMITED') {
+        if (errEl) {
+          errEl.textContent = res.errors && res.errors.length > 0 ? res.errors.join('; ') : 'Không thể nhận diện giao dịch. Vui lòng thử lại cụ thể hơn.';
+          errEl.style.display = 'block';
+        }
+        return;
+      }
+
+      if (res.proposals && res.proposals.length > 0) {
+        this.currentAIProposals = res.proposals;
+        this.closeAIAssistantModal();
+        this.openAIProposalModal();
+        this.renderAIProposals();
+      } else {
+        if (errEl) {
+          errEl.textContent = 'Không tìm thấy giao dịch nào trong câu nói.';
+          errEl.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      if (errEl) {
+        errEl.textContent = `Lỗi hệ thống: ${err.message}`;
+        errEl.style.display = 'block';
+      }
+    } finally {
+      if (btnExtract) {
+        btnExtract.disabled = false;
+        btnExtract.innerHTML = '<i data-lucide="zap" style="width: 16px; height: 16px;"></i> <span>Trích xuất giao dịch</span>';
+        this.setupIcons();
+      }
+    }
+  }
+
+  async handleReceiptFileSelected(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const errEl = document.getElementById('aiAssistantError');
+    if (errEl) errEl.style.display = 'none';
+
+    this.showToast('Đang quét hóa đơn bằng AI...');
+
+    try {
+      if (!this.aiAgent) this.initAIAgent();
+      const res = await this.aiAgent.parseReceiptImage(file);
+
+      if (res.status === 'SUCCESS' && res.proposal) {
+        this.currentAIProposals = [res.proposal];
+        this.closeAIAssistantModal();
+        this.openAIProposalModal();
+        this.renderAIProposals();
+      } else {
+        if (errEl) {
+          errEl.textContent = res.errors && res.errors.length > 0 ? res.errors.join('; ') : 'Không thể trích xuất hóa đơn.';
+          errEl.style.display = 'block';
+        }
+      }
+    } catch (err) {
+      this.showToast(`Lỗi quét hóa đơn: ${err.message}`);
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  openAIProposalModal() {
+    const modal = document.getElementById('aiProposalModal');
+    if (modal) modal.classList.add('active');
+  }
+
+  closeAIProposalModal() {
+    const modal = document.getElementById('aiProposalModal');
+    if (modal) modal.classList.remove('active');
+    this.currentAIProposals = [];
+  }
+
+  renderAIProposals() {
+    const container = document.getElementById('aiProposalListContainer');
+    if (!container) return;
+
+    if (!this.currentAIProposals || this.currentAIProposals.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">Không có đề xuất giao dịch nào.</div>';
+      return;
+    }
+
+    const availableWallets = this.data.wallets?.accounts || [
+      { id: 'acc-cash', name: 'Tiền mặt' },
+      { id: 'acc-bank', name: 'Ngân hàng' }
+    ];
+
+    const knownCategories = ['Grab', 'Ăn uống', 'Xăng xe', 'Sửa xe', 'Sinh hoạt', 'Mua sắm', 'Lương', 'Thưởng', 'Khác'];
+
+    let html = '';
+    this.currentAIProposals.forEach((p, idx) => {
+      const isIncome = p.type === 'income';
+      const isTransfer = p.type === 'transfer';
+      const typeBadgeColor = isIncome ? '#10B981' : (isTransfer ? '#3B82F6' : '#EF4444');
+      const typeBadgeBg = isIncome ? '#ECFDF5' : (isTransfer ? '#EFF6FF' : '#FEF2F2');
+      const typeLabel = isIncome ? 'Thu nhập' : (isTransfer ? 'Chuyển khoản' : 'Chi tiêu');
+
+      html += `
+        <div class="ui-card" style="margin: 0; padding: 12px; border: 1.5px solid ${p.requiresManualClarification ? '#F59E0B' : 'var(--border-color)'}; border-radius: 14px; background: var(--card-bg);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; background: ${typeBadgeBg}; color: ${typeBadgeColor}; text-transform: uppercase;">
+                ${typeLabel}
+              </span>
+              <span style="font-size: 11px; color: var(--text-muted);">Giao dịch #${idx + 1}</span>
+            </div>
+            ${p.requiresManualClarification ? '<span style="font-size: 11px; font-weight: 700; color: #D97706; background: #FEF3C7; padding: 2px 6px; border-radius: 6px;">Cần xác nhận ví/danh mục</span>' : ''}
+          </div>
+
+          <!-- Số tiền (Có thể chỉnh sửa) -->
+          <div style="margin-bottom: 8px;">
+            <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Số tiền (VNĐ)</label>
+            <input type="number" id="propAmount_${idx}" value="${p.amount || 0}" class="input-field" style="width: 100%; font-size: 16px; font-weight: 800; padding: 8px 10px; border-radius: 8px; color: ${typeBadgeColor};">
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+            <!-- Danh mục -->
+            <div>
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Danh mục</label>
+              <select id="propCategory_${idx}" class="input-field" style="width: 100%; padding: 8px; border-radius: 8px; font-size: 13px;">
+                ${knownCategories.map(c => `<option value="${this.escapeHtml(c)}" ${p.category === c ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
+              </select>
+            </div>
+
+            <!-- Tài khoản Ví -->
+            <div>
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Tài khoản Ví</label>
+              <select id="propWallet_${idx}" class="input-field" style="width: 100%; padding: 8px; border-radius: 8px; font-size: 13px;">
+                ${availableWallets.map(w => `<option value="${this.escapeHtml(w.name)}" ${(p.wallet === w.name || (!p.wallet && w.name === 'Tiền mặt')) ? 'selected' : ''}>${this.escapeHtml(w.name)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+
+          <!-- Ghi chú & Ngày -->
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 8px;">
+            <div>
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Nội dung</label>
+              <input type="text" id="propDesc_${idx}" value="${this.escapeHtml(p.description || p.category)}" class="input-field" style="width: 100%; padding: 8px; border-radius: 8px; font-size: 13px;">
+            </div>
+            <div>
+              <label style="font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 2px;">Ngày</label>
+              <input type="date" id="propDate_${idx}" value="${p.date || this.getLocalDateString()}" class="input-field" style="width: 100%; padding: 8px; border-radius: 8px; font-size: 12px;">
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+
+    const labelBtn = document.getElementById('btnConfirmAITxsLabel');
+    if (labelBtn) {
+      labelBtn.textContent = `Xác nhận ghi Sổ Cái (${this.currentAIProposals.length} GD)`;
+    }
+  }
+
+  commitConfirmedAITransactions() {
+    if (!this.currentAIProposals || this.currentAIProposals.length === 0) {
+      this.closeAIProposalModal();
+      return;
+    }
+
+    const availableWallets = this.data.wallets?.accounts || [];
+    let savedCount = 0;
+
+    for (let idx = 0; idx < this.currentAIProposals.length; idx++) {
+      const p = this.currentAIProposals[idx];
+      const amtInput = document.getElementById(`propAmount_${idx}`);
+      const catInput = document.getElementById(`propCategory_${idx}`);
+      const walletInput = document.getElementById(`propWallet_${idx}`);
+      const descInput = document.getElementById(`propDesc_${idx}`);
+      const dateInput = document.getElementById(`propDate_${idx}`);
+
+      const amount = amtInput ? parseFloat(amtInput.value) : p.amount;
+      if (!Number.isFinite(amount) || amount <= 0) {
+        this.showToast(`Số tiền ở giao dịch #${idx + 1} không hợp lệ!`);
+        return;
+      }
+
+      const category = catInput ? catInput.value : (p.category || 'Khác');
+      const walletName = walletInput ? walletInput.value : (p.wallet || 'Tiền mặt');
+      const note = descInput ? descInput.value.trim() : (p.description || category);
+      const dateVal = dateInput ? dateInput.value : (p.date || this.getLocalDateString());
+      const parts = dateVal.split('-');
+      const dateDisplay = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : dateVal;
+
+      const targetAcc = availableWallets.find(w => w.name === walletName) || availableWallets[0];
+
+      // TẠO TRANSACTION CHUẨN KÈM IDEMPOTENCY KEY (Rule 12 & 13)
+      const newTx = {
+        id: p.id || this.generateAppUUID('tx'),
+        aiRequestId: p.aiRequestId || null,
+        title: this.escapeHtml(note),
+        category: category,
+        date: dateDisplay,
+        time: p.time || '12:00',
+        isoDate: dateVal,
+        type: p.type || 'expense',
+        amount: Math.round(amount),
+        account: targetAcc ? targetAcc.name : 'Tiền mặt',
+        user: this.data.user?.name || 'Người dùng',
+        icon: this.getCategoryIcon(category, p.type)
+      };
+
+      if (!this.data.transactions) this.data.transactions = [];
+
+      // Kiểm tra trùng lặp Idempotency trên client RAM
+      const existingIdx = this.data.transactions.findIndex(t => t.id === newTx.id);
+      if (existingIdx >= 0) {
+        // Đã tồn tại, bỏ qua ghi trùng
+        continue;
+      }
+
+      this.data.transactions.unshift(newTx);
+
+      // Cập nhật số dư ví
+      if (targetAcc) {
+        if (newTx.type === 'income') {
+          targetAcc.balance += newTx.amount;
+        } else if (newTx.type === 'expense') {
+          targetAcc.balance -= newTx.amount;
+        }
+      }
+
+      // Đồng bộ độc lập từng Document lên Firestore SSOT Ledger
+      if (window.grabSync) {
+        if (typeof window.grabSync.writeTransactionDoc === 'function') {
+          window.grabSync.writeTransactionDoc(newTx);
+        }
+        if (targetAcc && typeof window.grabSync.writeWalletDoc === 'function') {
+          const wId = targetAcc.id || (targetAcc.name === 'Tiền mặt' ? 'acc-cash' : 'acc-bank');
+          window.grabSync.writeWalletDoc(wId, targetAcc);
+        }
+      }
+
+      savedCount++;
+    }
+
+    // TÍNH TOÁN LẠI VÀ ĐỐI SOÁT LEDGER (Rule 13, 37)
+    this.recalculateBalances();
+    this.saveData();
+    this.reconcileBalancesFromLedger();
+
+    this.playCoinSound();
+    this.triggerHaptic('medium');
+    this.renderAll();
+    this.closeAIProposalModal();
+    this.showToast(`Đã ghi nhận ${savedCount} giao dịch vào Sổ Cái!`);
+  }
+
+  getCategoryIcon(cat, type = 'expense') {
+    if (type === 'income') return 'arrow-down-left';
+    const c = String(cat).toLowerCase();
+    if (c.includes('grab')) return 'car';
+    if (c.includes('xăng')) return 'fuel';
+    if (c.includes('ăn') || c.includes('cà phê') || c.includes('cafe')) return 'utensils';
+    if (c.includes('sửa')) return 'wrench';
+    if (c.includes('mua') || c.includes('shopee')) return 'shopping-bag';
+    if (c.includes('lương') || c.includes('thưởng')) return 'banknote';
+    return 'folder';
+  }
+
+  async openAIInsightsModal() {
+    const modal = document.getElementById('aiInsightsModal');
+    const body = document.getElementById('aiInsightsBody');
+    if (!modal || !body) return;
+
+    modal.classList.add('active');
+    body.innerHTML = `
+      <div style="text-align: center; padding: 30px 10px;">
+        <i data-lucide="loader" style="width: 28px; height: 28px; color: #4F46E5; animation: spin 1s linear infinite; margin-bottom: 8px;"></i>
+        <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">Đang tổng hợp & phân tích số liệu...</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Tính toán định lượng bằng Deterministic Code</div>
+      </div>
+    `;
+    this.setupIcons();
+
+    if (!this.aiAgent) this.initAIAgent();
+
+    try {
+      const res = await this.aiAgent.generateFinancialInsights(
+        this.data.transactions || [],
+        this.data.wallets || {},
+        this.data.budget || null
+      );
+
+      const ctx = res.sanitizedContext || {};
+      const inc = (ctx.income || 0).toLocaleString('vi-VN');
+      const exp = (ctx.expense || 0).toLocaleString('vi-VN');
+      const net = (ctx.net || 0).toLocaleString('vi-VN');
+      const rate = ctx.savingsRate || 0;
+
+      let obsHtml = '';
+      if (res.observations && res.observations.length > 0) {
+        obsHtml = res.observations.map(obs => `
+          <div style="padding: 10px 12px; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 12px; margin-bottom: 8px;">
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-main); margin-bottom: 2px;">${this.escapeHtml(obs.title)}</div>
+            <div style="font-size: 14px; font-weight: 800; color: #4F46E5; margin-bottom: 2px;">${this.escapeHtml(String(obs.value))}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">${this.escapeHtml(obs.evidence)}</div>
+          </div>
+        `).join('');
+      }
+
+      let sugHtml = '';
+      if (res.suggestions && res.suggestions.length > 0) {
+        sugHtml = res.suggestions.map(sug => `
+          <li style="font-size: 12px; color: var(--text-main); margin-bottom: 6px; line-height: 1.4;">${this.escapeHtml(sug)}</li>
+        `).join('');
+      }
+
+      body.innerHTML = `
+        <!-- Thẻ Tổng Quan Dòng Tiền -->
+        <div class="ui-card" style="margin-top: 6px; margin-bottom: 12px; padding: 14px; border-radius: 14px; background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(124, 58, 237, 0.04)); border: 1px solid rgba(79, 70, 229, 0.2);">
+          <div style="font-size: 11px; font-weight: 700; color: #4F46E5; text-transform: uppercase; margin-bottom: 4px;">Dòng tiền ròng (${ctx.period ? `${ctx.period.start} → ${ctx.period.end}` : 'Toàn thời gian'})</div>
+          <div style="font-size: 20px; font-weight: 800; color: var(--text-main); margin-bottom: 8px;">${(ctx.net || 0) >= 0 ? '+' : ''}${net}đ</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; text-align: center; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 8px;">
+            <div>
+              <div style="font-size: 10px; color: var(--text-muted);">Tổng Thu</div>
+              <div style="font-size: 12px; font-weight: 800; color: var(--primary-green);">${inc}đ</div>
+            </div>
+            <div>
+              <div style="font-size: 10px; color: var(--text-muted);">Tổng Chi</div>
+              <div style="font-size: 12px; font-weight: 800; color: var(--accent-red);">${exp}đ</div>
+            </div>
+            <div>
+              <div style="font-size: 10px; color: var(--text-muted);">Tích Lũy</div>
+              <div style="font-size: 12px; font-weight: 800; color: #4F46E5;">${rate}%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Thuyết Minh AI (Summary) -->
+        <div style="font-size: 13px; line-height: 1.5; color: var(--text-main); margin-bottom: 14px; padding: 0 4px;">
+          ${this.escapeHtml(res.summary)}
+        </div>
+
+        <!-- Quan sát chi tiết -->
+        ${obsHtml ? `<div style="margin-bottom: 14px;"><div style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Phát hiện chính</div>${obsHtml}</div>` : ''}
+
+        <!-- Gợi ý hành động -->
+        ${sugHtml ? `<div style="margin-bottom: 12px;"><div style="font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 6px;">Gợi ý từ dữ liệu</div><ul style="padding-left: 18px; margin: 0;">${sugHtml}</ul></div>` : ''}
+
+        <!-- Badge Căn cứ số liệu -->
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 10px; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 8px;">
+          <span>Độ tin cậy: <strong style="color: var(--primary-green);">Dữ liệu thực tế (Grounded)</strong></span>
+          <span>Số GD phân tích: <strong>${ctx.transactionCount || 0}</strong></span>
+        </div>
+      `;
+      this.setupIcons();
+    } catch (err) {
+      body.innerHTML = `
+        <div style="padding: 20px; text-align: center; color: var(--accent-red);">
+          <i data-lucide="alert-circle" style="width: 24px; height: 24px; margin-bottom: 6px;"></i>
+          <div style="font-size: 14px; font-weight: 700;">Không thể tạo phân tích</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">${this.escapeHtml(err.message)}</div>
+        </div>
+      `;
+      this.setupIcons();
+    }
+  }
+
+  closeAIInsightsModal() {
+    const modal = document.getElementById('aiInsightsModal');
+    if (modal) modal.classList.remove('active');
   }
 
   // ===================================================

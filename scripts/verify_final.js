@@ -22,7 +22,7 @@ console.log('----------------------------------------------------------------');
 console.log('2. FIRESTORE SECURITY REAL TEST');
 console.log('----------------------------------------------------------------');
 
-const rulesContent = fs.readFileSync(path.join(__dirname, 'firestore.rules'), 'utf8');
+const rulesContent = fs.readFileSync(path.join(__dirname, '../firestore.rules'), 'utf8');
 
 // Firestore Rule Engine simulating exact rule AST semantics
 function evaluateFirestoreRule({ auth, path: docPath, method, resource, requestResource }) {
@@ -170,8 +170,8 @@ console.log('5. ATOMIC TRANSFER REAL TEST');
 console.log('----------------------------------------------------------------');
 
 // Source code inspection confirmation
-const syncCode = fs.readFileSync(path.join(__dirname, 'firebase-sync.js'), 'utf8');
-const appCode = fs.readFileSync(path.join(__dirname, 'app.js'), 'utf8');
+const syncCode = fs.readFileSync(path.join(__dirname, '../src/services/firebase/firebase-sync.js'), 'utf8');
+const appCode = fs.readFileSync(path.join(__dirname, '../docs/legacy/app.js'), 'utf8');
 
 const hasRunTransaction = syncCode.includes('this.db.runTransaction(async (transaction) => {');
 const appCallsExecuteAtomic = appCode.includes('window.grabSync.executeAtomicTransfer(');

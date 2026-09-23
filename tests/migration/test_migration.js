@@ -10,7 +10,7 @@
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const LegacyDataMigrator = require('./migrate_legacy_data');
+const LegacyDataMigrator = require('../../scripts/migrate_legacy_data');
 
 console.log('====================================================');
 console.log('🚀 KIỂM THỬ DATA MIGRATION SUITE (test_migration.js)');
@@ -33,7 +33,7 @@ function runTest(name, fn) {
 // TEST 1: Di chuyển dữ liệu Baseline thực tế (127 transactions, 40.96M thu, 40.32M chi, 25M số dư)
 runTest('1. Exact match migration on Baseline (127 txs, 40.96M inc, 40.32M exp, 25M bal)', () => {
   const migrator = new LegacyDataMigrator();
-  const baselinePath = path.join(__dirname, 'backup_baseline_127tx.json');
+  const baselinePath = path.join(__dirname, '../fixtures/backup_baseline_127tx.json');
   assert.ok(fs.existsSync(baselinePath), 'Phải có file backup_baseline_127tx.json');
   const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
 
@@ -93,7 +93,7 @@ runTest('3. Mismatched total balance must FAIL and abort', () => {
 // TEST 4: Idempotency: Chạy migration lần 1 và lần 2 cho kết quả giống hệt nhau, không nhân đôi bản ghi
 runTest('4. Idempotency test (Run 1 == Run 2 without duplicate destination items)', () => {
   const migrator = new LegacyDataMigrator();
-  const baselinePath = path.join(__dirname, 'backup_baseline_127tx.json');
+  const baselinePath = path.join(__dirname, '../fixtures/backup_baseline_127tx.json');
   const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
 
   const run1 = migrator.migrate('uid_idempotent', baselineData);

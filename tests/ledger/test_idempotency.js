@@ -53,7 +53,7 @@ async function runAsyncTest(name, fn) {
 // ============================================================================
 runTest('1. Ledger Drift Detection & Recovery (25,000,000 vs 24,900,000)', () => {
   // Đọc dữ liệu baseline chuẩn 127 transactions
-  const baselinePath = path.join(__dirname, 'backup_baseline_127tx.json');
+  const baselinePath = path.join(__dirname, '../fixtures/backup_baseline_127tx.json');
   const baselineData = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
 
   // Giả lập instance app

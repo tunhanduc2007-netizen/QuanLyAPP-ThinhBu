@@ -13,7 +13,7 @@ console.log('🚀 KIỂM THỬ FIRESTORE SECURITY RULES (test_firestore_security
 console.log('====================================================\n');
 
 // Đọc nội dung file firestore.rules thực tế
-const rulesPath = path.join(__dirname, 'firestore.rules');
+const rulesPath = path.join(__dirname, '../../firestore.rules');
 assert.ok(fs.existsSync(rulesPath), 'File firestore.rules bắt buộc phải tồn tại');
 const rulesContent = fs.readFileSync(rulesPath, 'utf8');
 

@@ -45,7 +45,7 @@ async function runAsyncTest(name, fn) {
 
 // 1. LEDGER IS AUTHORITATIVE
 runTest('1. Ledger is authoritative (Financial state is 100% derived from Ledger)', () => {
-  const baseline = JSON.parse(fs.readFileSync(path.join(__dirname, 'backup_baseline_127tx.json'), 'utf8'));
+  const baseline = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/backup_baseline_127tx.json'), 'utf8'));
   const txs = baseline.transactions;
   assert.strictEqual(txs.length, 127);
 
@@ -68,7 +68,7 @@ runTest('1. Ledger is authoritative (Financial state is 100% derived from Ledger
 // 2. LEGACY DIVERGENCE DOES NOT OVERWRITE LEDGER
 runTest('2. Legacy divergence does not overwrite Ledger (Stale snapshot rejected)', () => {
   // Client có Ledger chuẩn 127 transactions (25M số dư)
-  const baseline = JSON.parse(fs.readFileSync(path.join(__dirname, 'backup_baseline_127tx.json'), 'utf8'));
+  const baseline = JSON.parse(fs.readFileSync(path.join(__dirname, '../fixtures/backup_baseline_127tx.json'), 'utf8'));
   const appData = {
     transactions: [...baseline.transactions],
     wallets: { totalBalance: 25000000, accounts: [{ name: 'Ngân hàng', balance: 25000000 }, { name: 'Tiền mặt', balance: 0 }] }
