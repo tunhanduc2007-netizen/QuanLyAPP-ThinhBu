@@ -482,7 +482,7 @@ export function FinanceProvider({ children }) {
    */
   const deleteTransaction = useCallback(async (txId) => {
     setData(prev => {
-      const nextTxs = prev.transactions.filter(t => t.id !== txId);
+      const nextTxs = (prev.transactions || []).filter(t => t.id !== txId);
       const rec = reconcileBalancesFromLedger(nextTxs, prev.wallets);
       const updatedWallets = {
         ...prev.wallets,
@@ -496,14 +496,28 @@ export function FinanceProvider({ children }) {
       const updatedOverview = calculateOverview(nextTxs, rec.initialBankBalance, rec.initialCashBalance);
       const updatedBudgets = calculateBudgetUsage(nextTxs, prev.budgets);
 
-      return {
+      const nextData = {
         ...prev,
         transactions: nextTxs,
         wallets: updatedWallets,
         overview: { ...prev.overview, ...updatedOverview },
         budgets: updatedBudgets
       };
+
+      try {
+        localStorage.setItem(STORAGE_FINANCE_KEY, JSON.stringify(nextData));
+      } catch (e) {}
+
+      return nextData;
     });
+
+    // Xóa vĩnh viễn trên Cloud Firestore Ledger SSOT
+    try {
+      await firebaseService.deleteTransactionDoc(txId);
+    } catch (e) {
+      console.warn('deleteTransactionDoc cloud error:', e);
+    }
+
     showToast('Đã xóa giao dịch');
   }, [showToast]);
 

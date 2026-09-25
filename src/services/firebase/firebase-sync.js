@@ -301,6 +301,33 @@ class GrabCloudSync {
     }
   }
 
+  // Xóa Transaction độc lập khỏi Subcollection users/{uid}/transactions/{txId}
+  async deleteTransactionDoc(txId) {
+    if (!txId) return;
+    const uid = this.getCurrentUid();
+
+    // Xóa khỏi hàng đợi Offline nếu đang tồn tại
+    try {
+      const qKey = 'fintrack_offline_queue_' + uid;
+      const raw = localStorage.getItem(qKey);
+      if (raw) {
+        const queue = JSON.parse(raw);
+        if (Array.isArray(queue)) {
+          const filtered = queue.filter(t => t.id !== txId);
+          localStorage.setItem(qKey, JSON.stringify(filtered));
+        }
+      }
+    } catch (e) {}
+
+    if (uid === 'guest' || !this.isFirebaseReady || !this.db) return;
+
+    try {
+      await this.db.collection('users').doc(uid).collection('transactions').doc(txId).delete();
+    } catch (err) {
+      console.warn('⚠️ Lỗi xóa Transaction trên Firestore:', err.message);
+    }
+  }
+
   // Ghi nhận số dư ví độc lập vào Subcollection users/{uid}/wallets/{walletId}
   async writeWalletDoc(walletId, walletData) {
     if (!walletId || !walletData) return;

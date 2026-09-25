@@ -52,6 +52,13 @@ export class FirebaseService {
     }
   }
 
+  async deleteTransactionDoc(txId) {
+    const s = this.getSync();
+    if (s && typeof s.deleteTransactionDoc === 'function') {
+      return await s.deleteTransactionDoc(txId);
+    }
+  }
+
   async writeWalletDoc(walletId, walletData) {
     const s = this.getSync();
     if (s && typeof s.writeWalletDoc === 'function') {
