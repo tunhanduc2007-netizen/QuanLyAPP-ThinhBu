@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { FinanceProvider, useFinance } from '@/context/FinanceContext';
 import BottomNav from '@/components/layout/BottomNav';
@@ -11,6 +11,7 @@ import AIProposalModal from '@/components/modals/AIProposalModal';
 import AIInsightsModal from '@/components/modals/AIInsightsModal';
 import NewGoalModal from '@/components/modals/NewGoalModal';
 import FriendQrModal from '@/components/modals/FriendQrModal';
+import AIAssistantFab from '@/components/common/AIAssistantFab';
 
 import DashboardPage from '@/pages/DashboardPage';
 import CalendarPage from '@/pages/CalendarPage';
@@ -23,7 +24,44 @@ import LoginPage from '@/pages/LoginPage';
 
 function MainAppShell() {
   const { isLoggedIn, loading } = useAuth();
-  const { activeTab } = useFinance();
+  const {
+    activeTab,
+    setIsAIAssistantOpen,
+    setIsAddTxOpen,
+    setIsTransferOpen,
+    setIsAIProposalOpen,
+    setIsAIInsightsOpen,
+    setIsNewGoalOpen,
+    setIsFriendQrOpen
+  } = useFinance();
+
+  // Global hotkeys (Ctrl+K for AI Assistant, Escape to dismiss sheets)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsAIAssistantOpen(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setIsAIAssistantOpen(false);
+        setIsAddTxOpen(false);
+        setIsTransferOpen(false);
+        setIsAIProposalOpen(false);
+        setIsAIInsightsOpen(false);
+        setIsNewGoalOpen(false);
+        setIsFriendQrOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    setIsAIAssistantOpen,
+    setIsAddTxOpen,
+    setIsTransferOpen,
+    setIsAIProposalOpen,
+    setIsAIInsightsOpen,
+    setIsNewGoalOpen,
+    setIsFriendQrOpen
+  ]);
 
   if (loading) {
     return <LoadingScreen message="Đang khởi động FinTrack Pro..." />;
@@ -45,6 +83,9 @@ function MainAppShell() {
         {activeTab === 'friends' && <FriendsPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </div>
+
+      {/* Magic UI Shimmer AI FAB */}
+      <AIAssistantFab />
 
       {/* Bottom Nav */}
       <BottomNav />

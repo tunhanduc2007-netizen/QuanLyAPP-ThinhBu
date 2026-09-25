@@ -2923,3 +2923,174 @@ input:checked + .slider:before {
   padding: 2px 8px;
   border-radius: var(--radius-pill);
 }
+
+/* ===================================================
+   OPEN SOURCE UI UPGRADE: LIQUID GLASS, MAGIC UI, TREMOR & VAUL
+   =================================================== */
+
+/* 1. LIQUID GLASS HERO BALANCE CARD */
+.liquid-glass-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 26px;
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.94) 0%, rgba(13, 148, 136, 0.88) 48%, rgba(2, 132, 199, 0.94) 100%);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -2px 4px 0 rgba(0, 0, 0, 0.12),
+    0 16px 36px -8px rgba(13, 148, 136, 0.45);
+  color: #FFFFFF;
+  padding: 22px 20px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.25s ease;
+}
+
+.liquid-glass-hero:active {
+  transform: scale(0.985);
+}
+
+/* Fluid optical refraction sheen */
+.liquid-glass-hero::before {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 220%;
+  height: 220%;
+  background: radial-gradient(circle at 40% 30%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+  animation: liquidSheen 8s ease-in-out infinite alternate;
+}
+
+@keyframes liquidSheen {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(15px, 10px) rotate(3deg); }
+  100% { transform: translate(-10px, 15px) rotate(-3deg); }
+}
+
+/* 2. LIQUID GLASS CARDS (Wallets, Quick tiles) */
+.liquid-glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.liquid-glass-card:active {
+  transform: scale(0.975);
+}
+
+/* 3. MAGIC UI SHIMMER AI FAB (Floating Action Button) */
+.ai-shimmer-fab {
+  position: fixed;
+  bottom: calc(72px + max(12px, env(safe-area-inset-bottom, 16px)));
+  right: 18px;
+  z-index: 95;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.45);
+  transition: transform 0.2s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.ai-shimmer-fab:active {
+  transform: scale(0.92);
+}
+
+.ai-shimmer-beam {
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(from 0deg, #8B5CF6, #EC4899, #10B981, #3B82F6, #8B5CF6);
+  animation: rotateBeam 3.5s linear infinite;
+  border-radius: 50%;
+}
+
+@keyframes rotateBeam {
+  to { transform: rotate(360deg); }
+}
+
+.ai-fab-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #1E1B4B 0%, #312E81 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  gap: 1px;
+}
+
+[data-theme="dark"] .ai-fab-inner {
+  background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 100%);
+}
+
+.ai-fab-text {
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  background: linear-gradient(90deg, #A78BFA, #F472B6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* 4. LIQUID GLASS BOTTOM NAVIGATION */
+.bottom-nav-bar {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.8),
+    0 -4px 20px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .bottom-nav-bar {
+  background: rgba(17, 24, 39, 0.88);
+  backdrop-filter: blur(24px) saturate(190%);
+  -webkit-backdrop-filter: blur(24px) saturate(190%);
+  border-top-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.1),
+    0 -4px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* 5. VAUL SPRING BOTTOM SHEET STYLING */
+.bottom-sheet-content {
+  animation: vaulSpringUp 0.38s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+@keyframes vaulSpringUp {
+  0% { transform: translateY(100%); opacity: 0.8; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.sheet-drag-handle {
+  width: 44px;
+  height: 5px;
+  background: var(--border-color);
+  border-radius: var(--radius-pill);
+  margin: -4px auto 16px auto;
+  cursor: grab;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.sheet-drag-handle:active {
+  cursor: grabbing;
+  transform: scaleX(1.15);
+  background: var(--text-muted);
+}
+

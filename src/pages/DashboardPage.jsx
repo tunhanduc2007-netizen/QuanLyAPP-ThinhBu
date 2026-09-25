@@ -3,6 +3,8 @@ import { useFinance } from '@/context/FinanceContext';
 import { useAuth } from '@/context/AuthContext';
 import { formatVND } from '@/domain/finance';
 import SpendingDonutChart from '@/components/charts/SpendingDonutChart';
+import NumberTicker from '@/components/common/NumberTicker';
+import MiniSparkline from '@/components/common/MiniSparkline';
 
 export default function DashboardPage() {
   const {
@@ -209,40 +211,15 @@ export default function DashboardPage() {
       </div>
 
       {/* 2. Main Balance Hero Card (Green -> Teal -> Blue Gradient) */}
-      {/* 2. Hero Balance Card (Click to open Wallets & Budgets) */}
+      {/* 2. Hero Balance Card (Liquid Glass + Magic UI NumberTicker + Tremor MiniSparkline) */}
       <div
-        className="hero-balance-card"
+        className="liquid-glass-hero"
         onClick={() => setActiveTab('wallets')}
-        style={{
-          background: 'linear-gradient(135deg, #059669 0%, #0D9488 45%, #0284C7 100%)',
-          color: '#FFFFFF',
-          borderRadius: 24,
-          padding: '22px 20px',
-          boxShadow: '0 14px 30px -8px rgba(13, 148, 136, 0.42)',
-          position: 'relative',
-          overflow: 'hidden',
-          marginBottom: 16,
-          cursor: 'pointer'
-        }}
       >
-        {/* Subtle decorative glow overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            top: -40,
-            right: -40,
-            width: 160,
-            height: 160,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)',
-            pointerEvents: 'none'
-          }}
-        />
-
         {/* Card Header: Title + Privacy Mode Eye Button + Wallets Shortcut Badge */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', opacity: 0.95 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', opacity: 0.95 }}>
               TỔNG TÀI SẢN KHẢ DỤNG
             </span>
             <button
@@ -309,14 +286,18 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Large Amount */}
-        <div style={{ fontSize: 36, fontWeight: 800, marginTop: 12, marginBottom: 10, letterSpacing: -0.5 }}>
-          {formatMoney ? formatMoney(totalAvailableBalance) : formatVND(totalAvailableBalance)}
+        {/* Large Amount with Magic UI NumberTicker */}
+        <div style={{ fontSize: 36, fontWeight: 800, marginTop: 12, marginBottom: 8, letterSpacing: -0.5 }}>
+          <NumberTicker
+            value={totalAvailableBalance}
+            isPrivacy={isPrivacyMode}
+            formatFn={formatMoney || formatVND}
+          />
         </div>
 
         {/* Asset Allocation Bar (Maybe / Ghostfolio style) */}
         {totalAvailableBalance > 0 && (
-          <div style={{ marginBottom: 14 }}>
+          <div style={{ marginBottom: 10 }}>
             <div style={{ height: 6, background: 'rgba(255, 255, 255, 0.2)', borderRadius: 9999, overflow: 'hidden', display: 'flex', gap: 2 }}>
               <div style={{ width: `${cashPct}%`, background: '#34D399', borderRadius: 9999 }} title={`Tiền mặt: ${cashPct}%`} />
               <div style={{ width: `${bankPct}%`, background: '#60A5FA', borderRadius: 9999 }} title={`Ngân hàng: ${bankPct}%`} />
@@ -332,18 +313,22 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Tremor MiniSparkline (7-day Cashflow wave) */}
+        <MiniSparkline transactions={transactions} height={40} />
+
         {/* Only Two Asset Categories: Tiền mặt & Tài khoản ngân hàng */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(255, 255, 255, 0.14)',
-            backdropFilter: 'blur(10px)',
-            WebkitBackdropFilter: 'blur(10px)',
+            background: 'rgba(255, 255, 255, 0.16)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             borderRadius: 16,
             padding: '12px 16px',
-            border: '1px solid rgba(255, 255, 255, 0.2)'
+            border: '1px solid rgba(255, 255, 255, 0.22)',
+            marginTop: 12
           }}
         >
           {/* Tiền mặt */}
@@ -369,7 +354,11 @@ export default function DashboardPage() {
             <div>
               <div style={{ fontSize: 11.5, opacity: 0.9, fontWeight: 500 }}>Tiền mặt</div>
               <div style={{ fontSize: 14, fontWeight: 800, marginTop: 1 }}>
-                {formatMoney ? formatMoney(cashAcc.balance || 0) : formatVND(cashAcc.balance || 0)}
+                <NumberTicker
+                  value={cashAcc.balance || 0}
+                  isPrivacy={isPrivacyMode}
+                  formatFn={formatMoney || formatVND}
+                />
               </div>
             </div>
           </div>
@@ -403,7 +392,11 @@ export default function DashboardPage() {
             <div>
               <div style={{ fontSize: 11.5, opacity: 0.9, fontWeight: 500 }}>Tài khoản ngân hàng</div>
               <div style={{ fontSize: 14, fontWeight: 800, marginTop: 1 }}>
-                {formatMoney ? formatMoney(bankAcc.balance || 0) : formatVND(bankAcc.balance || 0)}
+                <NumberTicker
+                  value={bankAcc.balance || 0}
+                  isPrivacy={isPrivacyMode}
+                  formatFn={formatMoney || formatVND}
+                />
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { parseVND, formatVND } from '@/domain/finance';
+import { triggerConfetti } from '@/utils/confetti';
 
 const GOAL_PRESETS = [
   { title: 'Mua xe máy', icon: '🏍️', target: 25000000, months: 6 },
@@ -70,6 +71,8 @@ export default function NewGoalModal() {
       currentAmount: cur,
       deadline
     });
+
+    triggerConfetti({ count: 80 });
 
     setTitle('');
     setIcon('🎯');

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatVND, parseVND } from '@/domain/finance';
+import NumberTicker from '@/components/common/NumberTicker';
+import { triggerConfetti } from '@/utils/confetti';
 
 const CATEGORY_ICONS = {
   'ăn uống': { icon: '🍜', color: '#EF4444', bg: 'rgba(239, 68, 68, 0.12)' },
@@ -363,6 +365,7 @@ export default function WalletsPage() {
         currentAmount: cur,
         deadline: goalModal.deadline
       });
+      triggerConfetti({ count: 70 });
       showToast('Đã tạo mục tiêu tài chính mới');
     } else if (goalModal.mode === 'edit' && goalModal.item) {
       updateGoal(goalModal.item.id, {
@@ -399,6 +402,7 @@ export default function WalletsPage() {
       return;
     }
     fundGoal(fundModal.goal.id, amt, fundModal.account);
+    triggerConfetti({ count: 70 });
     showToast(`Đã nạp ${formatVND(amt)} vào "${fundModal.goal.title}"`);
     setFundModal({ open: false, goal: null, amount: '', account: 'Tài khoản ngân hàng' });
   };
@@ -508,30 +512,16 @@ export default function WalletsPage() {
           </div>
         </div>
 
-        {/* 1. HERO TOTAL BALANCE SUMMARY CARD */}
+        {/* 1. HERO TOTAL BALANCE SUMMARY CARD (Liquid Glass + NumberTicker) */}
         <div
-          className="ui-card"
+          className="liquid-glass-hero"
           onClick={handleOpenAllWalletsModal}
           role="button"
           tabIndex={0}
-          style={{
-            background: 'linear-gradient(135deg, #059669 0%, #0D9488 50%, #0284C7 100%)',
-            color: '#FFFFFF',
-            borderRadius: 20,
-            padding: '20px',
-            marginBottom: 16,
-            boxShadow: '0 10px 25px -5px rgba(13, 148, 136, 0.35)',
-            position: 'relative',
-            overflow: 'hidden',
-            cursor: 'pointer',
-            transition: 'transform 0.18s ease, box-shadow 0.18s ease'
-          }}
           title="Bấm vào đây để cài đặt số dư ban đầu cho các ví"
         >
-          <div style={{ position: 'absolute', top: -30, right: -30, width: 130, height: 130, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)', pointerEvents: 'none' }} />
-          
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.9 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.9 }}>
               TỔNG SỐ DƯ KHẢ DỤNG
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -544,8 +534,8 @@ export default function WalletsPage() {
             </div>
           </div>
 
-          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -0.5, marginBottom: 12 }}>
-            {formatVND(totalBalance)}
+          <div style={{ fontSize: 34, fontWeight: 900, letterSpacing: -0.5, marginBottom: 12 }}>
+            <NumberTicker value={totalBalance} formatFn={formatVND} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, opacity: 0.95 }}>
@@ -553,25 +543,20 @@ export default function WalletsPage() {
           </div>
         </div>
 
-        {/* 2. TWO WALLET CARDS: Tiền mặt & Tài khoản ngân hàng */}
+        {/* 2. TWO WALLET CARDS: Tiền mặt & Tài khoản ngân hàng (Liquid Glass Cards) */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
           {/* Tiền mặt Card */}
           <div
-            className="ui-card"
+            className="ui-card liquid-glass-card"
             onClick={() => handleOpenWalletModal('Tiền mặt')}
             role="button"
             tabIndex={0}
             style={{
               padding: 16,
               margin: 0,
-              background: 'var(--bg-card)',
-              borderRadius: 16,
-              border: '1.5px solid var(--border-color)',
-              boxShadow: 'var(--shadow-card)',
               position: 'relative',
               overflow: 'hidden',
-              cursor: 'pointer',
-              transition: 'all 0.18s ease'
+              cursor: 'pointer'
             }}
             title="Bấm vào đây để ghi tiền hoặc sửa số dư Ví Tiền mặt"
           >
@@ -592,7 +577,7 @@ export default function WalletsPage() {
 
             <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Số dư ví</div>
             <div style={{ fontSize: 19, fontWeight: 900, color: 'var(--text-main)', marginTop: 2 }}>
-              {formatVND(cashAcc.balance || 0)}
+              <NumberTicker value={cashAcc.balance || 0} formatFn={formatVND} />
             </div>
 
             {/* Call to action badge */}
@@ -606,21 +591,16 @@ export default function WalletsPage() {
 
           {/* Tài khoản ngân hàng Card */}
           <div
-            className="ui-card"
+            className="ui-card liquid-glass-card"
             onClick={() => handleOpenWalletModal('Ngân hàng')}
             role="button"
             tabIndex={0}
             style={{
               padding: 16,
               margin: 0,
-              background: 'var(--bg-card)',
-              borderRadius: 16,
-              border: '1.5px solid var(--border-color)',
-              boxShadow: 'var(--shadow-card)',
               position: 'relative',
               overflow: 'hidden',
-              cursor: 'pointer',
-              transition: 'all 0.18s ease'
+              cursor: 'pointer'
             }}
             title="Bấm vào đây để ghi tiền hoặc sửa số dư Tài khoản Ngân hàng"
           >
@@ -642,9 +622,9 @@ export default function WalletsPage() {
               </span>
             </div>
 
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Tài khoản liên kết</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Số dư ví</div>
             <div style={{ fontSize: 19, fontWeight: 900, color: 'var(--text-main)', marginTop: 2 }}>
-              {formatVND(bankAcc.balance || 0)}
+              <NumberTicker value={bankAcc.balance || 0} formatFn={formatVND} />
             </div>
 
             {/* Call to action badge */}

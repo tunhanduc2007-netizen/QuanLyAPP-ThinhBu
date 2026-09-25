@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useFinance } from '@/context/FinanceContext';
 import { formatVND } from '@/domain/finance';
+import { triggerConfetti } from '@/utils/confetti';
 
 export default function RankingPage() {
   const { transactions, data, friends, setActiveTab } = useFinance();
@@ -317,29 +318,34 @@ export default function RankingPage() {
         {topUser && topUser.amount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
             <div
-              className="ui-card"
+              className="ui-card liquid-glass-card"
+              onClick={() => triggerConfetti({ count: 90 })}
+              title="Chạm để bắn pháo hoa ăn mừng!"
               style={{
                 width: '100%',
-                maxWidth: 280,
+                maxWidth: 290,
                 padding: '20px 16px',
                 margin: 0,
                 textAlign: 'center',
                 borderTop: '4px solid #F59E0B',
-                background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.12) 0%, var(--bg-card) 100%)',
-                boxShadow: '0 6px 18px rgba(245, 158, 11, 0.15)',
-                borderRadius: 18,
-                border: '1px solid var(--border-color)'
+                background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.14) 0%, var(--bg-card) 100%)',
+                boxShadow: '0 8px 24px rgba(245, 158, 11, 0.2)',
+                borderRadius: 20,
+                cursor: 'pointer'
               }}
             >
-              <div style={{ fontSize: 32 }}>👑</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-main)', marginTop: 4 }}>
+              <div style={{ fontSize: 34 }}>👑</div>
+              <div style={{ fontSize: 16.5, fontWeight: 800, color: 'var(--text-main)', marginTop: 4 }}>
                 {topUser.name} {topUser.isCurrentUser && '(Bạn)'}
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
                 Quán quân {metric === 'total_income' ? 'Doanh thu' : 'Tiết kiệm'} ({period === 'this_week' ? 'Tuần này' : period === 'this_month' ? 'Tháng này' : 'Năm nay'})
               </div>
-              <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--primary-green)', marginTop: 8 }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--primary-green)', marginTop: 8 }}>
                 {formatVND(topUser.amount)}
+              </div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, padding: '4px 10px', borderRadius: 9999, background: 'rgba(245, 158, 11, 0.18)', color: '#D97706', fontSize: 11, fontWeight: 800 }}>
+                <span>🎉 Chạm để ăn mừng!</span>
               </div>
             </div>
           </div>

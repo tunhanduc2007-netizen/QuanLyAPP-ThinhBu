@@ -148,11 +148,11 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
         /* Gyroscopic Orbital Rings */
         .orbit-ring-1 {
           position: absolute;
-          width: 156px;
-          height: 156px;
+          width: 184px;
+          height: 184px;
           border-radius: 50%;
           border: 2px dashed rgba(16, 185, 129, 0.55);
-          box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
+          box-shadow: 0 0 18px rgba(16, 185, 129, 0.25);
           transform-style: preserve-3d;
           animation: orbitSpin1 6s linear infinite;
           pointer-events: none;
@@ -160,11 +160,11 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
 
         .orbit-ring-2 {
           position: absolute;
-          width: 172px;
-          height: 172px;
+          width: 204px;
+          height: 204px;
           border-radius: 50%;
           border: 1.5px solid rgba(56, 189, 248, 0.4);
-          box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+          box-shadow: 0 0 22px rgba(56, 189, 248, 0.2);
           transform-style: preserve-3d;
           animation: orbitSpin2 7.5s linear infinite reverse;
           pointer-events: none;
@@ -175,11 +175,11 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
           position: absolute;
           top: -4px;
           left: 50%;
-          width: 9px;
-          height: 9px;
+          width: 10px;
+          height: 10px;
           border-radius: 50%;
           background: #34D399;
-          box-shadow: 0 0 12px #34D399, 0 0 20px #10B981;
+          box-shadow: 0 0 14px #34D399, 0 0 24px #10B981;
           transform: translateX(-50%);
         }
 
@@ -187,11 +187,11 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
           position: absolute;
           bottom: -4px;
           left: 50%;
-          width: 8px;
-          height: 8px;
+          width: 9px;
+          height: 9px;
           border-radius: 50%;
           background: #38BDF8;
-          box-shadow: 0 0 12px #38BDF8, 0 0 20px #0284C7;
+          box-shadow: 0 0 14px #38BDF8, 0 0 24px #0284C7;
           transform: translateX(-50%);
         }
 
@@ -216,9 +216,9 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
         /* Breathing Ground Shadow */
         .fintrack-ground-shadow {
           position: absolute;
-          bottom: 12px;
-          width: 110px;
-          height: 22px;
+          bottom: 10px;
+          width: 130px;
+          height: 26px;
           border-radius: 50%;
           background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.45) 0%, rgba(16, 185, 129, 0.15) 45%, transparent 75%);
           animation: shadowBreathe 3.2s ease-in-out infinite;
@@ -334,7 +334,7 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
 
             {/* FRONT FACE: Stylized FinTech Monogram */}
             <div className="coin-front">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.35))' }}>
+              <svg width="56" height="56" viewBox="0 0 48 48" fill="none" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.35))' }}>
                 <defs>
                   <linearGradient id="frontEmblemGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#FFFFFF" />
@@ -353,7 +353,7 @@ export default function LoadingScreen({ message = 'Đang khởi động FinTrack
 
             {/* BACK FACE: SSOT Security Shield */}
             <div className="coin-back">
-              <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.35))' }}>
+              <svg width="54" height="54" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.35))' }}>
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 <path d="m9 12 2 2 4-4" />
               </svg>
