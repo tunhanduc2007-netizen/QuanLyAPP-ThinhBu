@@ -154,6 +154,8 @@ export default function AddTransactionModal() {
     setIsAddTxOpen,
     addTxType,
     setAddTxType,
+    addTxAccount,
+    setAddTxAccount,
     addTransaction,
     wallets,
     selectedDate,
@@ -170,11 +172,15 @@ export default function AddTransactionModal() {
   useEffect(() => {
     if (isAddTxOpen) {
       if (selectedDate) setTxDate(selectedDate);
-      if (!selectedAccount && wallets?.accounts?.[0]?.name) {
+      if (addTxAccount) {
+        // Match exact or fuzzy (e.g. 'Ngân hàng' or 'Tài khoản ngân hàng')
+        const matched = wallets?.accounts?.find(a => a.name === addTxAccount || (addTxAccount.includes('ngân hàng') && a.name.includes('ngân hàng')));
+        setSelectedAccount(matched ? matched.name : addTxAccount);
+      } else if (!selectedAccount && wallets?.accounts?.[0]?.name) {
         setSelectedAccount(wallets.accounts[0].name);
       }
     }
-  }, [isAddTxOpen, selectedDate]);
+  }, [isAddTxOpen, selectedDate, addTxAccount]);
 
   if (!isAddTxOpen) return null;
 

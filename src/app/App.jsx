@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { FinanceProvider, useFinance } from '@/context/FinanceContext';
 import BottomNav from '@/components/layout/BottomNav';
 import Toast from '@/components/layout/Toast';
+import LoadingScreen from '@/components/layout/LoadingScreen';
 import AddTransactionModal from '@/components/modals/AddTransactionModal';
 import TransferModal from '@/components/modals/TransferModal';
 import AIAssistantModal from '@/components/modals/AIAssistantModal';
@@ -25,11 +26,7 @@ function MainAppShell() {
   const { activeTab } = useFinance();
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-app)', color: 'var(--primary-green)', fontWeight: 800 }}>
-        Đang khởi động FinTrack Pro...
-      </div>
-    );
+    return <LoadingScreen message="Đang khởi động FinTrack Pro..." />;
   }
 
   if (!isLoggedIn) {

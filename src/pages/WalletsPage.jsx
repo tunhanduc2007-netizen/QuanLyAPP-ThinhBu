@@ -144,10 +144,24 @@ export default function WalletsPage() {
     deleteGoal,
     showToast,
     setActiveTab,
-    setIsTransferOpen
+    setIsTransferOpen,
+    setIsAddTxOpen,
+    setAddTxType,
+    setAddTxAccount,
+    updateWalletBalance,
+    updateAllWalletBalances
   } = useFinance();
 
   // Dialog / Modal States
+  const [walletModal, setWalletModal] = useState({
+    open: false,
+    mode: 'single', // 'single' | 'all'
+    accountName: 'Tiền mặt',
+    currentBalance: 0,
+    targetBalance: '',
+    cashBalance: '',
+    bankBalance: ''
+  });
   const [budgetModal, setBudgetModal] = useState({ open: false, mode: 'add', item: null, title: '', target: '' });
   const [goalModal, setGoalModal] = useState({
     open: false,
@@ -167,6 +181,58 @@ export default function WalletsPage() {
   const cashAcc = accounts.find(a => a?.name === 'Tiền mặt') || { balance: 0 };
   const bankAcc = accounts.find(a => a?.name === 'Tài khoản ngân hàng' || a?.name === 'Ngân hàng') || { balance: 0 };
   const totalBalance = (Number(cashAcc.balance) || 0) + (Number(bankAcc.balance) || 0);
+
+  // Wallet Balance Handlers
+  const handleOpenWalletModal = (accountName) => {
+    const isCash = accountName === 'Tiền mặt';
+    const acc = isCash ? cashAcc : bankAcc;
+    const curBal = Number(acc.balance) || 0;
+    setWalletModal({
+      open: true,
+      mode: 'single',
+      accountName: isCash ? 'Tiền mặt' : 'Ngân hàng',
+      currentBalance: curBal,
+      targetBalance: curBal > 0 ? String(curBal) : '',
+      cashBalance: '',
+      bankBalance: ''
+    });
+  };
+
+  const handleOpenAllWalletsModal = () => {
+    setWalletModal({
+      open: true,
+      mode: 'all',
+      accountName: 'all',
+      currentBalance: totalBalance,
+      targetBalance: '',
+      cashBalance: cashAcc.balance > 0 ? String(cashAcc.balance) : '',
+      bankBalance: bankAcc.balance > 0 ? String(bankAcc.balance) : ''
+    });
+  };
+
+  const handleSaveWalletBalance = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (walletModal.mode === 'all') {
+      const cBal = parseVND(walletModal.cashBalance);
+      const bBal = parseVND(walletModal.bankBalance);
+      if (updateAllWalletBalances) {
+        updateAllWalletBalances(cBal, bBal);
+      }
+    } else {
+      const tgt = parseVND(walletModal.targetBalance);
+      if (updateWalletBalance) {
+        updateWalletBalance(walletModal.accountName, tgt);
+      }
+    }
+    setWalletModal(prev => ({ ...prev, open: false }));
+  };
+
+  const handleQuickAddTx = (type, accName) => {
+    setWalletModal(prev => ({ ...prev, open: false }));
+    if (setAddTxType) setAddTxType(type);
+    if (setAddTxAccount) setAddTxAccount(accName);
+    if (setIsAddTxOpen) setIsAddTxOpen(true);
+  };
 
   // Budget Handlers
   const handleOpenAddBudget = (prefillTitle = '', prefillTarget = '') => {
@@ -377,39 +443,77 @@ export default function WalletsPage() {
             </div>
           </div>
 
-          {/* Quick Transfer Button */}
-          {setIsTransferOpen && (
-            <button
-              type="button"
-              onClick={() => setIsTransferOpen(true)}
-              style={{
-                background: 'var(--primary-green-light)',
-                color: 'var(--primary-green)',
-                border: '1px solid var(--primary-green)',
-                borderRadius: 'var(--radius-pill)',
-                padding: '6px 14px',
-                fontSize: 12.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="17 1 21 5 17 9" />
-                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <polyline points="7 23 3 19 7 15" />
-                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-              <span>Chuyển ví</span>
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Quick Add Transaction Button */}
+            {setIsAddTxOpen && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (setAddTxType) setAddTxType('expense');
+                  setIsAddTxOpen(true);
+                }}
+                style={{
+                  background: 'var(--primary-green)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '6px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  boxShadow: '0 3px 10px rgba(16, 185, 129, 0.3)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Ghi chép một khoản thu hoặc chi tiêu mới"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Ghi tiền</span>
+              </button>
+            )}
+
+            {/* Quick Transfer Button */}
+            {setIsTransferOpen && (
+              <button
+                type="button"
+                onClick={() => setIsTransferOpen(true)}
+                style={{
+                  background: 'var(--primary-green-light)',
+                  color: 'var(--primary-green)',
+                  border: '1px solid var(--primary-green)',
+                  borderRadius: 'var(--radius-pill)',
+                  padding: '6px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="17 1 21 5 17 9" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <polyline points="7 23 3 19 7 15" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                </svg>
+                <span>Chuyển ví</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 1. HERO TOTAL BALANCE SUMMARY CARD */}
         <div
           className="ui-card"
+          onClick={handleOpenAllWalletsModal}
+          role="button"
+          tabIndex={0}
           style={{
             background: 'linear-gradient(135deg, #059669 0%, #0D9488 50%, #0284C7 100%)',
             color: '#FFFFFF',
@@ -418,8 +522,11 @@ export default function WalletsPage() {
             marginBottom: 16,
             boxShadow: '0 10px 25px -5px rgba(13, 148, 136, 0.35)',
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            cursor: 'pointer',
+            transition: 'transform 0.18s ease, box-shadow 0.18s ease'
           }}
+          title="Bấm vào đây để cài đặt số dư ban đầu cho các ví"
         >
           <div style={{ position: 'absolute', top: -30, right: -30, width: 130, height: 130, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%)', pointerEvents: 'none' }} />
           
@@ -427,17 +534,22 @@ export default function WalletsPage() {
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.9 }}>
               TỔNG SỐ DƯ KHẢ DỤNG
             </span>
-            <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: 9999, fontWeight: 600 }}>
-              2 Ví Đang Hoạt Động
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: 9999, fontWeight: 600 }}>
+                2 Ví Hoạt Động
+              </span>
+              <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.28)', padding: '3px 9px', borderRadius: 9999, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                ✏️ Sửa số dư
+              </span>
+            </div>
           </div>
 
-          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -0.5, marginBottom: 14 }}>
+          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -0.5, marginBottom: 12 }}>
             {formatVND(totalBalance)}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, opacity: 0.9 }}>
-            <span>🔒 Bảo vệ theo chuẩn sổ cái kép SSOT • Số dư bất biến</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, opacity: 0.95 }}>
+            <span>🔒 Chuẩn sổ cái kép SSOT • Bấm vào ví bên dưới để ghi tiền hoặc sửa số dư ✏️</span>
           </div>
         </div>
 
@@ -446,16 +558,22 @@ export default function WalletsPage() {
           {/* Tiền mặt Card */}
           <div
             className="ui-card"
+            onClick={() => handleOpenWalletModal('Tiền mặt')}
+            role="button"
+            tabIndex={0}
             style={{
               padding: 16,
               margin: 0,
               background: 'var(--bg-card)',
               borderRadius: 16,
-              border: '1px solid var(--border-color)',
+              border: '1.5px solid var(--border-color)',
               boxShadow: 'var(--shadow-card)',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              cursor: 'pointer',
+              transition: 'all 0.18s ease'
             }}
+            title="Bấm vào đây để ghi tiền hoặc sửa số dư Ví Tiền mặt"
           >
             <div style={{ width: '100%', height: 4, background: 'linear-gradient(90deg, #06B6D4, #0891B2)', position: 'absolute', top: 0, left: 0 }} />
             
@@ -476,21 +594,35 @@ export default function WalletsPage() {
             <div style={{ fontSize: 19, fontWeight: 900, color: 'var(--text-main)', marginTop: 2 }}>
               {formatVND(cashAcc.balance || 0)}
             </div>
+
+            {/* Call to action badge */}
+            <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#06B6D4', background: 'rgba(6, 182, 212, 0.08)', padding: '4px 8px', borderRadius: 6 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+              <span>Ghi / Sửa số dư</span>
+            </div>
           </div>
 
           {/* Tài khoản ngân hàng Card */}
           <div
             className="ui-card"
+            onClick={() => handleOpenWalletModal('Ngân hàng')}
+            role="button"
+            tabIndex={0}
             style={{
               padding: 16,
               margin: 0,
               background: 'var(--bg-card)',
               borderRadius: 16,
-              border: '1px solid var(--border-color)',
+              border: '1.5px solid var(--border-color)',
               boxShadow: 'var(--shadow-card)',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              cursor: 'pointer',
+              transition: 'all 0.18s ease'
             }}
+            title="Bấm vào đây để ghi tiền hoặc sửa số dư Tài khoản Ngân hàng"
           >
             <div style={{ width: '100%', height: 4, background: 'linear-gradient(90deg, #10B981, #059669)', position: 'absolute', top: 0, left: 0 }} />
             
@@ -513,6 +645,14 @@ export default function WalletsPage() {
             <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Tài khoản liên kết</div>
             <div style={{ fontSize: 19, fontWeight: 900, color: 'var(--text-main)', marginTop: 2 }}>
               {formatVND(bankAcc.balance || 0)}
+            </div>
+
+            {/* Call to action badge */}
+            <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#10B981', background: 'rgba(16, 185, 129, 0.08)', padding: '4px 8px', borderRadius: 6 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+              </svg>
+              <span>Ghi / Sửa số dư</span>
             </div>
           </div>
         </div>
@@ -1821,6 +1961,398 @@ export default function WalletsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 8. MODAL: Quản Lý & Điều Chỉnh Số Dư Ví (Single Wallet & All Wallets) */}
+      {walletModal.open && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+          onClick={() => setWalletModal(prev => ({ ...prev, open: false }))}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 460,
+              background: 'var(--bg-card, #FFFFFF)',
+              borderRadius: 22,
+              border: '1px solid var(--border-color)',
+              padding: 24,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)',
+              maxHeight: '92vh',
+              overflowY: 'auto'
+            }}
+          >
+            {walletModal.mode === 'all' ? (
+              /* --- MODE: CÀI ĐẶT CẢ 2 VÍ --- */
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)' }}>
+                      Cài Đặt Số Dư Khởi Tạo
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Nhập số tiền thực tế đang có trong các ví của bạn
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWalletModal(prev => ({ ...prev, open: false }))}
+                    style={{ background: 'var(--bg-card-subtle)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveWalletBalance}>
+                  {/* Ví Tiền mặt */}
+                  <div style={{ marginBottom: 16, background: 'rgba(6, 182, 212, 0.05)', padding: '14px', borderRadius: 16, border: '1px solid rgba(6, 182, 212, 0.2)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#06B6D4', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        💵 Ví Tiền mặt
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Hiện tại: {formatVND(cashAcc.balance || 0)}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={formatDisplayDigits(walletModal.cashBalance)}
+                      onChange={e => setWalletModal(prev => ({ ...prev, cashBalance: e.target.value.replace(/\D/g, '') }))}
+                      className="auth-input"
+                      style={{ width: '100%', height: 44, padding: '0 12px', fontSize: 18, fontWeight: 900, borderRadius: 12 }}
+                    />
+                    {walletModal.cashBalance && (
+                      <div style={{ fontSize: 11.5, color: '#06B6D4', fontWeight: 700, marginTop: 4 }}>
+                        ≈ {getFriendlyAmountText(walletModal.cashBalance)}
+                      </div>
+                    )}
+                    {/* Quick chips for Cash */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      {[500000, 1000000, 2000000, 5000000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(walletModal.cashBalance) || 0;
+                            setWalletModal(prev => ({ ...prev, cashBalance: String(cur + amt) }));
+                          }}
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid rgba(6, 182, 212, 0.3)',
+                            borderRadius: 9999,
+                            padding: '3px 8px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#06B6D4',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          +{amt >= 1000000 ? `${amt / 1000000}tr` : `${amt / 1000}k`}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setWalletModal(prev => ({ ...prev, cashBalance: '0' }))}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 9999,
+                          padding: '3px 8px',
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Đặt 0đ
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tài khoản Ngân hàng */}
+                  <div style={{ marginBottom: 18, background: 'rgba(16, 185, 129, 0.05)', padding: '14px', borderRadius: 16, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#10B981', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        🏛️ Tài khoản Ngân hàng
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        Hiện tại: {formatVND(bankAcc.balance || 0)}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="0"
+                      value={formatDisplayDigits(walletModal.bankBalance)}
+                      onChange={e => setWalletModal(prev => ({ ...prev, bankBalance: e.target.value.replace(/\D/g, '') }))}
+                      className="auth-input"
+                      style={{ width: '100%', height: 44, padding: '0 12px', fontSize: 18, fontWeight: 900, borderRadius: 12 }}
+                    />
+                    {walletModal.bankBalance && (
+                      <div style={{ fontSize: 11.5, color: '#10B981', fontWeight: 700, marginTop: 4 }}>
+                        ≈ {getFriendlyAmountText(walletModal.bankBalance)}
+                      </div>
+                    )}
+                    {/* Quick chips for Bank */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                      {[1000000, 2000000, 5000000, 10000000, 20000000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(walletModal.bankBalance) || 0;
+                            setWalletModal(prev => ({ ...prev, bankBalance: String(cur + amt) }));
+                          }}
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            borderRadius: 9999,
+                            padding: '3px 8px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: '#10B981',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          +{amt >= 1000000 ? `${amt / 1000000}tr` : `${amt / 1000}k`}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setWalletModal(prev => ({ ...prev, bankBalance: '0' }))}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 9999,
+                          padding: '3px 8px',
+                          fontSize: 10.5,
+                          fontWeight: 600,
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Đặt 0đ
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Summary row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 12, background: 'var(--bg-card-subtle)', marginBottom: 18 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>Tổng số dư mới:</span>
+                    <span style={{ fontSize: 16, fontWeight: 900, color: 'var(--text-main)' }}>
+                      {formatVND((Number(walletModal.cashBalance) || 0) + (Number(walletModal.bankBalance) || 0))}
+                    </span>
+                  </div>
+
+                  {/* Submit buttons */}
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      className="btn-primary"
+                      type="submit"
+                      style={{ flex: 1, height: 44, fontSize: 14, fontWeight: 800 }}
+                    >
+                      💾 Lưu Số Dư Cả Hai Ví
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWalletModal(prev => ({ ...prev, open: false }))}
+                      style={{ padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--border-color)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              /* --- MODE: CÀI ĐẶT / QUẢN LÝ 1 VÍ CỤ THỂ --- */
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        background: walletModal.accountName === 'Tiền mặt' ? 'rgba(6, 182, 212, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                        color: walletModal.accountName === 'Tiền mặt' ? '#06B6D4' : '#10B981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 20
+                      }}
+                    >
+                      {walletModal.accountName === 'Tiền mặt' ? '💵' : '🏛️'}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)' }}>
+                        Ví {walletModal.accountName}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Số dư hiện tại: <strong style={{ color: 'var(--text-main)' }}>{formatVND(walletModal.currentBalance)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWalletModal(prev => ({ ...prev, open: false }))}
+                    style={{ background: 'var(--bg-card-subtle)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* FORM ĐIỀU CHỈNH SỐ DƯ */}
+                <form onSubmit={handleSaveWalletBalance} style={{ marginBottom: 18 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>
+                      Nhập số dư thực tế mới trong ví (VNĐ):
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoFocus
+                      placeholder="0"
+                      value={formatDisplayDigits(walletModal.targetBalance)}
+                      onChange={e => setWalletModal(prev => ({ ...prev, targetBalance: e.target.value.replace(/\D/g, '') }))}
+                      className="auth-input"
+                      style={{ width: '100%', height: 46, padding: '0 14px', fontSize: 20, fontWeight: 900, borderRadius: 12 }}
+                    />
+                    {walletModal.targetBalance ? (
+                      <div style={{ fontSize: 12, color: walletModal.accountName === 'Tiền mặt' ? '#06B6D4' : '#10B981', fontWeight: 700, marginTop: 4 }}>
+                        ≈ {getFriendlyAmountText(walletModal.targetBalance)}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                        💡 Gõ số tiền thực tế bạn đang có trong ví này
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Gợi ý số tiền nhanh */}
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      Cộng nhanh số tiền:
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {[100000, 200000, 500000, 1000000, 2000000, 5000000, 10000000, 20000000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(walletModal.targetBalance) || 0;
+                            setWalletModal(prev => ({ ...prev, targetBalance: String(cur + amt) }));
+                          }}
+                          style={{
+                            background: 'var(--bg-card-subtle)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: 9999,
+                            padding: '4px 10px',
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: 'var(--text-main)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          +{amt >= 1000000 ? `${amt / 1000000}tr` : `${amt / 1000}k`}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setWalletModal(prev => ({ ...prev, targetBalance: '0' }))}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 9999,
+                          padding: '4px 10px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Đặt 0đ
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn-primary"
+                    type="submit"
+                    style={{ width: '100%', height: 44, fontSize: 14, fontWeight: 800, borderRadius: 12 }}
+                  >
+                    💾 Lưu Số Dư Ví
+                  </button>
+                </form>
+
+                {/* PHẦN GHI CHÉP GIAO DỊCH NHANH */}
+                <div style={{ borderTop: '1px dashed var(--border-color)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', marginBottom: 10, textAlign: 'center' }}>
+                    HOẶC GHI NHANH GIAO DỊCH CHO VÍ NÀY
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddTx('income', walletModal.accountName)}
+                      style={{
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        color: 'var(--primary-green)',
+                        border: '1px solid var(--primary-green)',
+                        borderRadius: 12,
+                        padding: '10px 8px',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <span>➕</span>
+                      <span>Ghi Thu Nhập</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAddTx('expense', walletModal.accountName)}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        color: '#EF4444',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        borderRadius: 12,
+                        padding: '10px 8px',
+                        fontSize: 12.5,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <span>➖</span>
+                      <span>Ghi Chi Tiêu</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

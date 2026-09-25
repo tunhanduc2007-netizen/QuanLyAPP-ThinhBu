@@ -60,6 +60,8 @@ export function FinanceProvider({ children }) {
           budgets: userBudgets,
           wallets: {
             ...parsed.wallets,
+            initialBankBalance: typeof parsed.wallets?.initialBankBalance === 'number' ? parsed.wallets.initialBankBalance : bankBal,
+            initialCashBalance: typeof parsed.wallets?.initialCashBalance === 'number' ? parsed.wallets.initialCashBalance : cashBal,
             totalBalance: bankBal + cashBal,
             accounts: cleanAccounts
           }
@@ -81,6 +83,7 @@ export function FinanceProvider({ children }) {
   // Modals Visibility
   const [isAddTxOpen, setIsAddTxOpen] = useState(false);
   const [addTxType, setAddTxType] = useState('expense'); // 'expense' | 'income'
+  const [addTxAccount, setAddTxAccount] = useState('Tiền mặt');
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
   const [isAIProposalOpen, setIsAIProposalOpen] = useState(false);
@@ -320,6 +323,159 @@ export function FinanceProvider({ children }) {
     setIsTransferOpen(false);
     return { success: true };
   }, [data.wallets.accounts, showToast]);
+
+  /**
+   * Cập nhật / Điều chỉnh số dư của ví (Tiền mặt hoặc Ngân hàng)
+   * Tự động tính toán số dư ban đầu theo chuẩn sổ cái kép SSOT
+   */
+  const updateWalletBalance = useCallback(async (accountName, targetBalance) => {
+    const newBal = Math.max(0, Number(targetBalance) || 0);
+    const isCash = accountName === 'Tiền mặt';
+    const normName = isCash ? 'Tiền mặt' : 'Ngân hàng';
+
+    setData(prev => {
+      let deltaBank = 0;
+      let deltaCash = 0;
+      (prev.transactions || []).forEach(tx => {
+        const amt = Number(tx.amount) || 0;
+        const acc = (tx.account === 'Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+        if (tx.type === 'income') {
+          if (acc === 'Tiền mặt') deltaCash += amt;
+          else deltaBank += amt;
+        } else if (tx.type === 'expense') {
+          if (acc === 'Tiền mặt') deltaCash -= amt;
+          else deltaBank -= amt;
+        } else if (tx.type === 'transfer') {
+          const from = (tx.fromAccount || (tx.account && tx.account.split(' → ')[0]) || '').includes('Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+          const to = (tx.toAccount || (tx.account && tx.account.split(' → ')[1]) || '').includes('Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+          if (from === 'Tiền mặt') deltaCash -= amt;
+          else deltaBank -= amt;
+          if (to === 'Tiền mặt') deltaCash += amt;
+          else deltaBank += amt;
+        }
+      });
+
+      let currentInitBank = typeof prev.wallets?.initialBankBalance === 'number'
+        ? prev.wallets.initialBankBalance
+        : (((prev.wallets?.accounts || []).find(a => a.name !== 'Tiền mặt')?.balance || 0) - deltaBank);
+      let currentInitCash = typeof prev.wallets?.initialCashBalance === 'number'
+        ? prev.wallets.initialCashBalance
+        : (((prev.wallets?.accounts || []).find(a => a.name === 'Tiền mặt')?.balance || 0) - deltaCash);
+
+      let newInitBank = currentInitBank;
+      let newInitCash = currentInitCash;
+
+      if (isCash) {
+        newInitCash = newBal - deltaCash;
+      } else {
+        newInitBank = newBal - deltaBank;
+      }
+
+      const finalBankBal = newInitBank + deltaBank;
+      const finalCashBal = newInitCash + deltaCash;
+      const finalTotal = finalBankBal + finalCashBal;
+
+      const updatedWallets = {
+        ...prev.wallets,
+        initialBankBalance: newInitBank,
+        initialCashBalance: newInitCash,
+        totalBalance: finalTotal,
+        accounts: [
+          { id: "acc-1", name: "Ngân hàng", icon: "landmark", balance: finalBankBal, color: "#10B981", bg: "#D1FAE5" },
+          { id: "acc-2", name: "Tiền mặt", icon: "banknote", balance: finalCashBal, color: "#06B6D4", bg: "#CFFAFE" }
+        ]
+      };
+
+      const updatedOverview = calculateOverview(prev.transactions || [], newInitBank, newInitCash);
+
+      return {
+        ...prev,
+        wallets: updatedWallets,
+        overview: {
+          ...prev.overview,
+          ...updatedOverview
+        }
+      };
+    });
+
+    try {
+      await firebaseService.writeWalletDoc(isCash ? 'acc-cash' : 'acc-bank', {
+        name: normName,
+        balance: newBal
+      });
+    } catch (e) {
+      console.warn('writeWalletDoc sync error:', e);
+    }
+
+    showToast(`Đã cập nhật số dư ${normName}: ${formatVND(newBal)}`);
+    return { success: true };
+  }, [showToast]);
+
+  /**
+   * Cài đặt đồng thời số dư cả 2 ví
+   */
+  const updateAllWalletBalances = useCallback(async (cashBalance, bankBalance) => {
+    const targetCash = Math.max(0, Number(cashBalance) || 0);
+    const targetBank = Math.max(0, Number(bankBalance) || 0);
+
+    setData(prev => {
+      let deltaBank = 0;
+      let deltaCash = 0;
+      (prev.transactions || []).forEach(tx => {
+        const amt = Number(tx.amount) || 0;
+        const acc = (tx.account === 'Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+        if (tx.type === 'income') {
+          if (acc === 'Tiền mặt') deltaCash += amt;
+          else deltaBank += amt;
+        } else if (tx.type === 'expense') {
+          if (acc === 'Tiền mặt') deltaCash -= amt;
+          else deltaBank -= amt;
+        } else if (tx.type === 'transfer') {
+          const from = (tx.fromAccount || (tx.account && tx.account.split(' → ')[0]) || '').includes('Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+          const to = (tx.toAccount || (tx.account && tx.account.split(' → ')[1]) || '').includes('Tiền mặt') ? 'Tiền mặt' : 'Ngân hàng';
+          if (from === 'Tiền mặt') deltaCash -= amt;
+          else deltaBank -= amt;
+          if (to === 'Tiền mặt') deltaCash += amt;
+          else deltaBank += amt;
+        }
+      });
+
+      const newInitCash = targetCash - deltaCash;
+      const newInitBank = targetBank - deltaBank;
+      const finalBank = newInitBank + deltaBank;
+      const finalCash = newInitCash + deltaCash;
+
+      const updatedWallets = {
+        ...prev.wallets,
+        initialBankBalance: newInitBank,
+        initialCashBalance: newInitCash,
+        totalBalance: finalBank + finalCash,
+        accounts: [
+          { id: "acc-1", name: "Ngân hàng", icon: "landmark", balance: finalBank, color: "#10B981", bg: "#D1FAE5" },
+          { id: "acc-2", name: "Tiền mặt", icon: "banknote", balance: finalCash, color: "#06B6D4", bg: "#CFFAFE" }
+        ]
+      };
+
+      const updatedOverview = calculateOverview(prev.transactions || [], newInitBank, newInitCash);
+
+      return {
+        ...prev,
+        wallets: updatedWallets,
+        overview: {
+          ...prev.overview,
+          ...updatedOverview
+        }
+      };
+    });
+
+    try {
+      await firebaseService.writeWalletDoc('acc-cash', { name: 'Tiền mặt', balance: targetCash });
+      await firebaseService.writeWalletDoc('acc-bank', { name: 'Ngân hàng', balance: targetBank });
+    } catch (e) {}
+
+    showToast(`Đã thiết lập số dư ví thành công`);
+    return { success: true };
+  }, [showToast]);
 
   /**
    * Xóa giao dịch
@@ -757,6 +913,8 @@ export function FinanceProvider({ children }) {
     setIsAddTxOpen,
     addTxType,
     setAddTxType,
+    addTxAccount,
+    setAddTxAccount,
     isTransferOpen,
     setIsTransferOpen,
     isAIAssistantOpen,
@@ -779,6 +937,8 @@ export function FinanceProvider({ children }) {
     // Actions
     addTransaction,
     executeTransfer,
+    updateWalletBalance,
+    updateAllWalletBalances,
     deleteTransaction,
     fundGoal,
     createGoal,
@@ -802,6 +962,7 @@ export function FinanceProvider({ children }) {
     txFilter,
     isAddTxOpen,
     addTxType,
+    addTxAccount,
     isTransferOpen,
     isAIAssistantOpen,
     isAIProposalOpen,
@@ -814,6 +975,8 @@ export function FinanceProvider({ children }) {
     showToast,
     addTransaction,
     executeTransfer,
+    updateWalletBalance,
+    updateAllWalletBalances,
     deleteTransaction,
     fundGoal,
     createGoal,
